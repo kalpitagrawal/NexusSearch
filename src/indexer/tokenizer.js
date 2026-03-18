@@ -19,9 +19,10 @@ export const textProcessor =  (repoName, repoDescription, Readme) => {
         .toLowerCase()
         .replace(/(<([^>]+)>)/ig, "")
         .replace(/[^a-zA-Z0-9\s]/g, "")
-        .split(" ")
+        .replace(/\n/g, " ")  
+        .split(/\s+/)
 
-    const filteredTokens = tokens.filter(word => !stopWords.has(word) && word.length >0);
+    const filteredTokens = tokens.filter(word => !stopWords.has(word) && word.length > 0);
 
     return filteredTokens;
 
