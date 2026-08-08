@@ -1,6 +1,6 @@
 # 🔍 GitHub Repo Search Engine
 
-A full-stack search engine for GitHub repositories — built from scratch using Node.js, Express, and MongoDB. Fetches real repo data via the GitHub API, processes it through a text pipeline, and ranks results using TF-IDF.
+A search engine for GitHub repositories — built from scratch using Node.js, Express, and MongoDB. Fetches real repo data via the GitHub API, processes it through a text pipeline, and ranks results using TF-IDF.
 
 ---
 
