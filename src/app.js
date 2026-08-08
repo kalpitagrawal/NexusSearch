@@ -4,8 +4,8 @@ import cors from "cors"
 
 const app = express()
 
-
-
+// import routes
+import searchRouter from "./routes/search.routes.js"
 
 
 
@@ -27,7 +27,8 @@ app.use(cookieParser());
 
 
 
-
+// routes declaration
+app.use("/api/v1/search", searchRouter)
 
 
 // proper error response
