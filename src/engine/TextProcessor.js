@@ -1,5 +1,5 @@
 /**
- * TextProcessor — Normalizes raw text into searchable tokens.
+ * TextProcessor — Normalizes raw text into searchable tokens with Porter Stemming.
  *
  * Pipeline:
  *   1. Lowercase the text
@@ -7,10 +7,9 @@
  *   3. Split on whitespace
  *   4. Filter out blank tokens
  *   5. Filter out stop words
- *
- * Direct port of TextProcessor.java
- * Same stop words set as the Java version.
+ *   6. Apply Porter Stemmer to reduce words to root form (e.g. running → run)
  */
+import { stem } from "./PorterStemmer.js";
 
 const STOP_WORDS = new Set([
     "a", "an", "the", "is", "are", "am",
@@ -18,10 +17,10 @@ const STOP_WORDS = new Set([
 ]);
 
 /**
- * Process raw text into a list of searchable tokens.
+ * Process raw text into a list of searchable, stemmed tokens.
  *
  * @param {string} text - raw text to process
- * @returns {string[]} - list of processed tokens
+ * @returns {string[]} - list of processed and stemmed tokens
  */
 const process = (text) => {
 
@@ -36,14 +35,16 @@ const process = (text) => {
     // Step 3: Split on whitespace
     // Step 4: Filter blank tokens
     // Step 5: Filter stop words
+    // Step 6: Stem each token
     return normalizedText
         .split(/\s+/)
         .filter(word => word.length > 0)
-        .filter(word => !STOP_WORDS.has(word));
+        .filter(word => !STOP_WORDS.has(word))
+        .map(word => stem(word));
 };
 
 /**
- * Process a user search query, extracting both overall tokens
+ * Process a user search query, extracting both overall stemmed tokens
  * and any exact quoted phrases (e.g. "data structure").
  *
  * @param {string} query
