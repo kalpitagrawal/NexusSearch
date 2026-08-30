@@ -42,4 +42,37 @@ const process = (text) => {
         .filter(word => !STOP_WORDS.has(word));
 };
 
-export { process, STOP_WORDS };
+/**
+ * Process a user search query, extracting both overall tokens
+ * and any exact quoted phrases (e.g. "data structure").
+ *
+ * @param {string} query
+ * @returns {{ tokens: string[], phrases: string[][] }}
+ */
+const processQuery = (query) => {
+    if (!query) return { tokens: [], phrases: [] };
+
+    const phrases = [];
+
+    // Extract exact phrases inside double quotes
+    const quoteRegex = /"([^"]+)"/g;
+    let match;
+
+    while ((match = quoteRegex.exec(query)) !== null) {
+        const rawPhrase = match[1];
+        const phraseTokens = process(rawPhrase);
+        if (phraseTokens.length > 1) {
+            phrases.push(phraseTokens);
+        }
+    }
+
+    // Process all tokens in query (including tokens from phrases)
+    const tokens = process(query);
+
+    return {
+        tokens,
+        phrases
+    };
+};
+
+export { process, processQuery, STOP_WORDS };

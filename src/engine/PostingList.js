@@ -1,64 +1,82 @@
 /**
- * PostingList — Tracks which documents contain a given term and how often.
+ * PostingList — Tracks which documents contain a given term, how often,
+ * and the exact positional offsets of each term occurrence.
  *
- * Data Structure: Map<documentId, frequency>
+ * Data Structure: Map<documentId, number[]>
  *
- * Direct port of PostingList.java
- * Previously this was a raw Map<String, Integer> inside InvertedIndex.
- * Extracted into its own class for a cleaner abstraction — instead of
- * reaching into a raw Map and calling .get()/.size(), consumers call
- * meaningful methods like .getFrequency(docId) and .getDocumentFrequency().
+ * Supports both standard BM25 Term Frequency (TF) and Exact Phrase Search
+ * via positional index lookup.
  */
 class PostingList {
 
     constructor() {
         /**
-         * Map<string, number> — documentId → term frequency in that document.
-         * @type {Map<string, number>}
+         * Map<string, number[]> — documentId → array of token positional offsets.
+         * @type {Map<string, number[]>}
          */
-        this.frequencies = new Map();
+        this.postings = new Map();
     }
 
     /**
-     * Record one occurrence of this term in the given document.
-     * If the document already exists, its frequency is incremented.
+     * Record an occurrence of this term in the given document at positional index `position`.
      *
+     * @param {string} documentId
+     * @param {number} position - 0-indexed position in processed token stream
+     */
+    addPosition(documentId, position) {
+        let positions = this.postings.get(documentId);
+        if (!positions) {
+            positions = [];
+            this.postings.set(documentId, positions);
+        }
+        positions.push(position);
+    }
+
+    /**
+     * Record one occurrence (fallback helper).
      * @param {string} documentId
      */
     add(documentId) {
-        const current = this.frequencies.get(documentId) || 0;
-        this.frequencies.set(documentId, current + 1);
+        this.addPosition(documentId, this.getFrequency(documentId));
     }
 
     /**
      * Get the term frequency (TF) for a specific document.
-     * Returns 0 if the document doesn't contain this term.
      *
      * @param {string} documentId
      * @returns {number} frequency count
      */
     getFrequency(documentId) {
-        return this.frequencies.get(documentId) || 0;
+        const positions = this.postings.get(documentId);
+        return positions ? positions.length : 0;
+    }
+
+    /**
+     * Get array of token positions for a term in a specific document.
+     *
+     * @param {string} documentId
+     * @returns {number[]}
+     */
+    getPositions(documentId) {
+        return this.postings.get(documentId) || [];
     }
 
     /**
      * Get the document frequency (DF) — how many distinct documents contain this term.
-     * Used in IDF calculation.
      *
      * @returns {number}
      */
     getDocumentFrequency() {
-        return this.frequencies.size;
+        return this.postings.size;
     }
 
     /**
      * Get all document IDs that contain this term.
-     * Used for candidate retrieval.
      *
      * @returns {Set<string>}
      */
     getDocuments() {
-        return new Set(this.frequencies.keys());
+        return new Set(this.postings.keys());
     }
 }
 

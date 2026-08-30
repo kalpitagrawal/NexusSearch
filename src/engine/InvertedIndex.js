@@ -33,8 +33,8 @@ class InvertedIndex {
 
         this.documentLengths.set(documentId, tokens.length);
 
-        for (const token of tokens) {
-
+        for (let i = 0; i < tokens.length; i++) {
+            const token = tokens[i];
             let postingList = this.index.get(token);
 
             if (!postingList) {
@@ -42,7 +42,7 @@ class InvertedIndex {
                 this.index.set(token, postingList);
             }
 
-            postingList.add(documentId);
+            postingList.addPosition(documentId, i);
         }
     }
 
