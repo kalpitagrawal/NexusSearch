@@ -205,7 +205,9 @@ const calculateScore = (documentId, queryTokens, totalDocuments, index) => {
 
         if (df !== 0) {
 
-            const idf = Math.log10(totalDocuments / df);
+            // Standard Robertson BM25 IDF formula with +1 smoothing
+            // Ensures non-zero positive scores even when N = df (e.g. single indexed document)
+            const idf = Math.log10(1 + (totalDocuments / df));
 
             const lengthFactor = 1 - b + b * (documentLength / averageDocumentLength);
 

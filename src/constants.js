@@ -1,1 +1,1 @@
-export const DB_NAME = "engine"
+export const DB_NAME = "searchengine"

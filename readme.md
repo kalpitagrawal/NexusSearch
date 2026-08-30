@@ -1,16 +1,18 @@
-# 🔍 GitHub Repo Search Engine
+# 🔍 Search Engine — MERN Stack (BM25 Engine)
 
-A search engine for GitHub repositories — built from scratch using Node.js, Express, and MongoDB. Fetches real repo data via the GitHub API, processes it through a text pipeline, and ranks results using TF-IDF.
+A full-stack web search engine built from scratch using Node.js, Express, and MongoDB. Features an in-memory inverted index, **BM25 ranking algorithm**, custom **Min-Heap top-K priority queue**, web crawler (`axios` + `cheerio`), and a sleek single-page frontend.
 
 ---
 
-## 📌 What It Does
+## 📌 Features & Highlights
 
-- Crawls GitHub repos using the GitHub REST API
-- Indexes **repo name**, **description**, and **README content**
-- Processes text (strip HTML → lowercase → remove stop words → tokenize)
-- Ranks search results using **TF-IDF**
-- Exposes a clean REST API to query the index
+- **BM25 Relevance Scoring**: Industry-standard ranking algorithm with term frequency saturation ($k_1=1.5$), document length normalization ($b=0.75$), and Robertson $+1$ term smoothing ($\log_{10}(1 + N/df)$).
+- **Min-Heap Top-K Selection**: Efficient priority queue ($O(N \log K)$) selecting the top-$K$ highest-scoring results without sorting all candidates.
+- **In-Memory Inverted Index**: `Map<token, PostingList>` data structure with `documentLengths` tracking for instant term lookup.
+- **Persistent Local Database**: Local disk-backed database at `./data/db` using MongoDB WiredTiger engine — indexed documents persist permanently across server restarts (matching Java's H2 file database).
+- **Web Crawler (`axios` + `cheerio`)**: HTML parsing pipeline fetching web pages and stripping non-content elements (`script`, `style`, `nav`, `footer`, `header`, `aside`, `.sidebar`, `.menu`, `.ad`).
+- **REST API & Startup Rebuild**: Automatically rebuilds inverted index from stored documents on server startup (`rebuildIndex()`).
+- **Modern UI**: Dark/monochrome glassmorphism design using JetBrains Mono typography, 4 views (Landing, Results, Index URL, Stats), HTML5 History API (browser Back/Forward support), and keyboard shortcuts (`/` to focus, `Esc` to go home).
 
 ---
 
@@ -18,134 +20,181 @@ A search engine for GitHub repositories — built from scratch using Node.js, Ex
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js |
-| Framework | Express.js |
-| Database | MongoDB + Mongoose |
-| HTTP Client | Axios |
-| Algorithm | TF-IDF |
+| Runtime | Node.js (ES Modules) |
+| Web Framework | Express.js |
+| Storage | Local MongoDB (`mongodb-memory-server` + WiredTiger) / MongoDB Atlas |
+| HTML Parsing | Cheerio + Axios |
+| Core Engine | Vanilla JavaScript (`PostingList`, `InvertedIndex`, `RankingEngine`, `MinHeap`) |
+| Frontend | Vanilla HTML5 / CSS3 (JetBrains Mono) / JS |
 
 ---
 
-<!-- ## 📁 Project Structure 
+## 🏗 Architecture Mapping (Java → MERN)
 
-
-search-engine/
-├── src/
-│   ├── crawler/        # Fetches repo data from GitHub API
-│   ├── indexer/        # Text processing + TF-IDF scoring
-│   ├── models/         # MongoDB schemas
-│   ├── routes/         # Express search API routes
-│   └── app.js          # Entry point
-├── .env                # GitHub token, MongoDB URI
-├── .gitignore
-└── package.json -->
-
-
----
-
-<!-- ## ⚙️ Setup
-
-### 1. Clone the repo
-
-```bash
-git clone https://github.com/kalpitagrawal/search-engine.git
-cd search-engine
+```
+Java (Spring Boot)                →    MERN (Express + MongoDB)
+─────────────────────                  ─────────────────────────
+SearchEngineApplication.java      →    src/index.js
+SearchController.java             →    src/controllers/search.controller.js
+SearchService.java                →    src/services/search.service.js
+Document.java (@Entity)           →    src/models/document.model.js
+DocumentRepository.java           →    Mongoose model methods
+WebCrawler.java (Jsoup)           →    src/crawler/WebCrawler.js (axios+cheerio)
+PostingList.java                  →    src/engine/PostingList.js
+InvertedIndex.java                →    src/engine/InvertedIndex.js
+TextProcessor.java                →    src/engine/TextProcessor.js
+SearchEngine.java                 →    src/engine/SearchEngine.js
+RankingEngine.java                →    src/engine/RankingEngine.js
+SearchResult.java                 →    src/engine/SearchResult.js
+application.properties            →    .env
+static/index.html                 →    public/index.html
+static/style.css                  →    public/style.css
+static/app.js                    →    public/app.js
 ```
 
-### 2. Install dependencies
+---
 
+## 📁 Project Structure
+
+```text
+GithubSearchEngine/
+├── public/
+│   ├── app.js               # Frontend routing, search, index & stats logic
+│   ├── index.html           # Landing, Results, Index, and Stats views
+│   └── style.css            # Design system, JetBrains Mono font, glassmorphism
+├── src/
+│   ├── controllers/
+│   │   └── search.controller.js  # REST API handlers
+│   ├── crawler/
+│   │   └── WebCrawler.js    # Cheerio/Axios HTML scraper
+│   ├── db/
+│   │   └── index.js         # Persistent local DB & MongoDB connection
+│   ├── engine/
+│   │   ├── InvertedIndex.js # Map<token, PostingList> index
+│   │   ├── PostingList.js   # Map<documentId, frequency>
+│   │   ├── RankingEngine.js # BM25 scoring & MinHeap top-K selection
+│   │   ├── SearchEngine.js  # Search pipeline orchestrator
+│   │   ├── SearchResult.js  # Search result model
+│   │   └── TextProcessor.js # Tokenizer & 12 stop-words filter
+│   ├── models/
+│   │   └── document.model.js# Mongoose Document schema
+│   ├── routes/
+│   │   └── search.routes.js # Express router (/api/search, /api/index, /api/stats)
+│   ├── services/
+│   │   └── search.service.js# Business logic, rebuildIndex(), snippet generator
+│   ├── app.js               # Express application configuration
+│   ├── constants.js         # DB constants
+│   └── index.js             # Application entry point
+├── .env                     # Environment variables
+├── .gitignore
+└── package.json
+```
+
+---
+
+## ⚙️ Quick Start
+
+### 1. Clone & Install
 ```bash
+cd GithubSearchEngine
 npm install
 ```
 
-### 3. Create a `.env` file
-
+### 2. Configure Environment (`.env`)
+By default, the engine runs in **Local Persistent Mode** (no MongoDB installation required):
 ```env
-GITHUB_TOKEN=your_github_personal_access_token
-MONGODB_URI=your_mongodb_connection_string
-PORT=3000
+PORT=8080
+CORS_ORIGIN=*
+USE_MEMORY_DB=true
+CRAWLER_TIMEOUT_MS=10000
+CRAWLER_USER_AGENT=SearchEngineBot/1.0
 ```
 
-> **Get a GitHub token:** GitHub → Settings → Developer Settings → Personal Access Tokens → Generate new token (no special scopes needed for public repos)
+*For MongoDB Atlas Production mode, set `USE_MEMORY_DB=false` and provide `MONGO_URI`.*
 
-### 4. Run the crawler to populate the database
-
+### 3. Start Development Server
 ```bash
-node src/crawler/index.js
+npm run dev
 ```
+Open **`http://localhost:8080`** in your browser.
 
-### 5. Start the server
+---
 
-```bash
-node src/app.js
-```
+## 🔌 API Endpoints
 
---- -->
-<!-- 
-## 🔌 API
+### 1. Search Index (`GET /api/search`)
+Query the inverted index and return BM25-ranked results.
 
-### `GET /search?q=your+query`
+**Query Parameters:**
+- `q` (required): Search query string (e.g. `react state`)
+- `topK` (optional, default `10`): Max number of results to return
 
-Returns ranked list of repos matching the query.
-
-**Example:**
-```
-GET /search?q=react state management
-```
+**Example:** `GET /api/search?q=react&topK=5`
 
 **Response:**
 ```json
 {
-  "query": "react state management",
+  "query": "react",
+  "totalResults": 1,
   "results": [
     {
-      "name": "reduxjs/redux",
-      "description": "Predictable state container for JS apps",
-      "score": 0.87,
-      "url": "https://github.com/reduxjs/redux"
+      "documentId": "https://react.dev/",
+      "score": 0.7306553292815078,
+      "title": "React",
+      "snippet": "ReactThe library for web and native user interfaces... Create user interfaces from components..."
     }
   ]
 }
 ```
 
---- -->
+---
 
-## 🧠 How It Works
+### 2. Index Web Page (`POST /api/index`)
+Crawl a URL, extract visible text, store document, and update inverted index.
 
-```
-GitHub API
-    ↓
-Fetch repo name + description + README
-    ↓
-Text Processing Pipeline
-  → Strip HTML
-  → Lowercase
-  → Remove stop words
-  → Tokenize
-    ↓
-Build Inverted Index in MongoDB
-    ↓
-TF-IDF Scoring on query
-    ↓
-Ranked Results
+**Request Body:**
+```json
+{
+  "url": "https://en.wikipedia.org/wiki/Search_engine"
+}
 ```
 
-### TF-IDF in plain English
-
-- **TF (Term Frequency):** How often does a word appear in a document?
-- **IDF (Inverse Document Frequency):** How rare is this word across all documents?
-- A word that appears often in one repo but rarely in others → high score → more relevant
+**Response:**
+```json
+{
+  "status": "indexed",
+  "url": "https://en.wikipedia.org/wiki/Search_engine",
+  "title": "Search engine - Wikipedia",
+  "tokensIndexed": 7376
+}
+```
 
 ---
 
-## Planned Features
+### 3. View Index Stats (`GET /api/stats`)
+Get live metric counters from the index and database.
 
-- [ ] Pagination
-- [ ] Caching popular queries
-- [ ] Autocomplete using a Prefix Tree (Trie)
-- [ ] Rate limiting
-- [ ] Search analytics (most searched terms, CTR)
-- [ ] Filter by language
+**Response:**
+```json
+{
+  "totalDocuments": 2,
+  "totalTerms": 3443,
+  "averageDocumentLength": 6732,
+  "documentsInDatabase": 2
+}
+```
+
+---
+
+## 🧠 BM25 Ranking Formula
+
+The ranking engine calculates document relevance using **Best Matching 25 (BM25)**:
+
+$$\text{Score}(D, Q) = \sum_{i=1}^{n} \text{IDF}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgdl}}\right)}$$
+
+- **$k_1 = 1.5$**: Controls term frequency saturation.
+- **$b = 0.75$**: Controls document length normalization.
+- **$\text{IDF}(q_i) = \log_{10}\left(1 + \frac{N}{df_i}\right)$**: Smoothed Inverse Document Frequency.
 
 ---
 
