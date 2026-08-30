@@ -9,7 +9,7 @@ A full-stack web search engine built from scratch using Node.js, Express, and Mo
 - **BM25 Relevance Scoring**: Industry-standard ranking algorithm with term frequency saturation ($k_1=1.5$), document length normalization ($b=0.75$), and Robertson $+1$ term smoothing ($\log_{10}(1 + N/df)$).
 - **Min-Heap Top-K Selection**: Efficient priority queue ($O(N \log K)$) selecting the top-$K$ highest-scoring results without sorting all candidates.
 - **In-Memory Inverted Index**: `Map<token, PostingList>` data structure with `documentLengths` tracking for instant term lookup.
-- **Persistent Local Database**: Local disk-backed database at `./data/db` using MongoDB WiredTiger engine — indexed documents persist permanently across server restarts (matching Java's H2 file database).
+- **Persistent Local Database**: Local disk-backed database at `./data/db` using MongoDB WiredTiger engine — indexed documents persist permanently across server restarts.
 - **Web Crawler (`axios` + `cheerio`)**: HTML parsing pipeline fetching web pages and stripping non-content elements (`script`, `style`, `nav`, `footer`, `header`, `aside`, `.sidebar`, `.menu`, `.ad`).
 - **REST API & Startup Rebuild**: Automatically rebuilds inverted index from stored documents on server startup (`rebuildIndex()`).
 - **Modern UI**: Dark/monochrome glassmorphism design using JetBrains Mono typography, 4 views (Landing, Results, Index URL, Stats), HTML5 History API (browser Back/Forward support), and keyboard shortcuts (`/` to focus, `Esc` to go home).
@@ -26,31 +26,6 @@ A full-stack web search engine built from scratch using Node.js, Express, and Mo
 | HTML Parsing | Cheerio + Axios |
 | Core Engine | Vanilla JavaScript (`PostingList`, `InvertedIndex`, `RankingEngine`, `MinHeap`) |
 | Frontend | Vanilla HTML5 / CSS3 (JetBrains Mono) / JS |
-
----
-
-## 🏗 Architecture Mapping (Java → MERN)
-
-```
-Java (Spring Boot)                →    MERN (Express + MongoDB)
-─────────────────────                  ─────────────────────────
-SearchEngineApplication.java      →    src/index.js
-SearchController.java             →    src/controllers/search.controller.js
-SearchService.java                →    src/services/search.service.js
-Document.java (@Entity)           →    src/models/document.model.js
-DocumentRepository.java           →    Mongoose model methods
-WebCrawler.java (Jsoup)           →    src/crawler/WebCrawler.js (axios+cheerio)
-PostingList.java                  →    src/engine/PostingList.js
-InvertedIndex.java                →    src/engine/InvertedIndex.js
-TextProcessor.java                →    src/engine/TextProcessor.js
-SearchEngine.java                 →    src/engine/SearchEngine.js
-RankingEngine.java                →    src/engine/RankingEngine.js
-SearchResult.java                 →    src/engine/SearchResult.js
-application.properties            →    .env
-static/index.html                 →    public/index.html
-static/style.css                  →    public/style.css
-static/app.js                    →    public/app.js
-```
 
 ---
 
