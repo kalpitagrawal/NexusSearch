@@ -164,6 +164,23 @@
                             Index
                         </button>
                     </div>
+
+                    <div class="recursive-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="recursive-toggle">
+                            <span>Recursive Crawling & Link Extraction</span>
+                        </label>
+                        <div id="recursive-params" class="recursive-params hidden">
+                            <div class="param-field">
+                                <label for="depth-input">Max Depth</label>
+                                <input type="number" id="depth-input" min="1" max="5" value="2">
+                            </div>
+                            <div class="param-field">
+                                <label for="pages-input">Max Pages</label>
+                                <input type="number" id="pages-input" min="1" max="50" value="10">
+                            </div>
+                        </div>
+                    </div>
                 </form>
                 <div id="index-result" class="index-result hidden"></div>
                 <div id="index-loading" class="index-loading hidden">

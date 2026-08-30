@@ -53,7 +53,7 @@ const searchDocuments = async (req, res) => {
  */
 const indexUrl = async (req, res) => {
 
-    const { url } = req.body;
+    const { url, maxDepth = 1, maxPages = 1 } = req.body;
 
     if (!url || url.trim() === "") {
         return res.status(400).json({
@@ -62,7 +62,10 @@ const indexUrl = async (req, res) => {
     }
 
     try {
-        const result = await SearchService.indexUrl(url);
+        const parsedDepth = parseInt(maxDepth, 10) || 1;
+        const parsedPages = parseInt(maxPages, 10) || 1;
+
+        const result = await SearchService.indexUrl(url, parsedDepth, parsedPages);
         return res.status(200).json(result);
 
     } catch (error) {

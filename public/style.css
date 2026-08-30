@@ -657,6 +657,68 @@ input {
     transform: none;
 }
 
+/* --- Recursive Crawling Options --- */
+
+.recursive-options {
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px dashed var(--border);
+}
+
+.checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-4);
+    font-size: 12px;
+    color: var(--text-2);
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--text);
+    cursor: pointer;
+}
+
+.recursive-params {
+    display: flex;
+    gap: var(--space-6);
+    margin-top: var(--space-5);
+    padding: var(--space-4) var(--space-6);
+    background: var(--bg-primary);
+    border-radius: var(--radius-3);
+    border: 1px solid var(--border);
+    animation: fadeIn 0.2s var(--ease);
+}
+
+.param-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 1;
+}
+
+.param-field label {
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+}
+
+.param-field input {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-2);
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    font-size: 12px;
+    color: var(--text);
+}
+
+.param-field input:focus {
+    border-color: var(--border-focus);
+}
+
 /* --- Index Result --- */
 
 .index-result {

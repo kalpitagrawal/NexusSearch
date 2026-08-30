@@ -5,7 +5,7 @@
  * - View routing (landing / results / index / stats)
  * - HTML5 History & Hash Navigation (Browser Back / Forward buttons work!)
  * - Search API integration with BM25 score rendering
- * - URL indexing with live feedback
+ * - Single-Page & Recursive Web Crawling with Live Progress/Summary
  * - Index statistics with animated counters
  * - Keyboard shortcuts ("/" to focus search, "Escape" to go home)
  */
@@ -202,13 +202,26 @@ function renderResults(results) {
 
 
 // ============================================
-// INDEX URL
+// INDEX URL (Single Page & Recursive Crawling)
 // ============================================
 
 const indexForm = document.getElementById('index-form');
 const indexResult = document.getElementById('index-result');
 const indexLoading = document.getElementById('index-loading');
 const indexSubmitBtn = document.getElementById('index-submit-btn');
+
+const recursiveToggle = document.getElementById('recursive-toggle');
+const recursiveParams = document.getElementById('recursive-params');
+
+if (recursiveToggle && recursiveParams) {
+    recursiveToggle.addEventListener('change', () => {
+        if (recursiveToggle.checked) {
+            recursiveParams.classList.remove('hidden');
+        } else {
+            recursiveParams.classList.add('hidden');
+        }
+    });
+}
 
 if (indexForm) {
     indexForm.addEventListener('submit', async (e) => {
@@ -219,6 +232,10 @@ if (indexForm) {
 
         if (!url) return;
 
+        const isRecursive = recursiveToggle ? recursiveToggle.checked : false;
+        const maxDepth = isRecursive ? (parseInt(document.getElementById('depth-input').value, 10) || 2) : 1;
+        const maxPages = isRecursive ? (parseInt(document.getElementById('pages-input').value, 10) || 10) : 1;
+
         indexResult.classList.add('hidden');
         indexLoading.classList.remove('hidden');
         indexSubmitBtn.disabled = true;
@@ -227,7 +244,7 @@ if (indexForm) {
             const response = await fetch(`${API_BASE}/api/index`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
+                body: JSON.stringify({ url, maxDepth, maxPages })
             });
 
             const data = await response.json();
@@ -236,16 +253,38 @@ if (indexForm) {
             indexSubmitBtn.disabled = false;
             indexResult.classList.remove('hidden');
 
-            if (response.ok && data.status === 'indexed') {
+            if (response.ok && (data.status === 'indexed' || data.summary)) {
                 indexResult.className = 'index-result success';
-                indexResult.innerHTML = `
-                    <div class="index-result-title">✓ Successfully indexed & persisted!</div>
-                    <div class="index-result-detail">
-                        <strong>${escapeHtml(data.title || 'Untitled')}</strong><br>
-                        ${escapeHtml(data.url)}<br>
-                        ${data.tokensIndexed} tokens indexed
-                    </div>
-                `;
+
+                if (data.summary) {
+                    const pagesListHtml = data.indexedPages.map(p => 
+                        `<div style="margin-bottom:6px;">• <strong>${escapeHtml(p.title || 'Untitled')}</strong> (Depth ${p.depth}) — ${p.tokensIndexed} tokens<br><span style="opacity:0.75; font-size:11px;">${escapeHtml(p.url)}</span></div>`
+                    ).join('');
+
+                    let reasonText = '';
+                    if (data.summary.stoppedReason === 'max_pages_reached') {
+                        reasonText = ` — Reached Max Pages limit (${data.summary.requestedMaxPages}) at Depth ${data.summary.maxDepthReached} of requested Depth ${data.summary.requestedMaxDepth}`;
+                    } else {
+                        reasonText = ` — Reached Depth ${data.summary.maxDepthReached} of ${data.summary.requestedMaxDepth}`;
+                    }
+
+                    indexResult.innerHTML = `
+                        <div class="index-result-title">✓ Recursive Crawl Complete!</div>
+                        <div class="index-result-detail">
+                            <strong>Indexed ${data.summary.totalPagesIndexed} page(s), skipped ${data.summary.totalPagesSkipped}${reasonText}</strong><br><br>
+                            ${pagesListHtml}
+                        </div>
+                    `;
+                } else {
+                    indexResult.innerHTML = `
+                        <div class="index-result-title">✓ Successfully indexed & persisted!</div>
+                        <div class="index-result-detail">
+                            <strong>${escapeHtml(data.title || 'Untitled')}</strong><br>
+                            ${escapeHtml(data.url)}<br>
+                            ${data.tokensIndexed} tokens indexed (${data.childLinksFound || 0} links discovered)
+                        </div>
+                    `;
+                }
                 urlInput.value = '';
 
             } else if (data.status === 'already_indexed') {
