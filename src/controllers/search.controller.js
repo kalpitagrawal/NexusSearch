@@ -23,7 +23,7 @@ import * as SearchService from "../services/search.service.js";
  */
 const searchDocuments = async (req, res) => {
 
-    const { q, topK = "10" } = req.query;
+    const { q, topK = "50", page = "1", limit = "10" } = req.query;
 
     if (!q || q.trim() === "") {
         return res.status(400).json({
@@ -32,9 +32,11 @@ const searchDocuments = async (req, res) => {
     }
 
     try {
-        const parsedTopK = parseInt(topK, 10);
-        const limit = isNaN(parsedTopK) || parsedTopK <= 0 ? 10 : parsedTopK;
-        const results = await SearchService.search(q, limit);
+        const parsedTopK = parseInt(topK, 10) || 50;
+        const parsedPage = parseInt(page, 10) || 1;
+        const parsedLimit = parseInt(limit, 10) || 10;
+
+        const results = await SearchService.search(q, parsedTopK, parsedPage, parsedLimit);
         return res.status(200).json(results);
     } catch (error) {
         return res.status(500).json({

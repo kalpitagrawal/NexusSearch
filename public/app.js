@@ -4,7 +4,8 @@
  * Features:
  * - View routing (landing / results / index / stats)
  * - HTML5 History & Hash Navigation (Browser Back / Forward buttons work!)
- * - Search API integration with BM25 score rendering
+ * - Search API integration with BM25 score rendering & Query Highlighting
+ * - Pagination & Dynamic Top-K / Results-per-page selector
  * - Single-Page & Recursive Web Crawling with Live Progress/Summary
  * - Index statistics with animated counters
  * - Keyboard shortcuts ("/" to focus search, "Escape" to go home)
@@ -12,12 +13,21 @@
 
 const API_BASE = '';  // Same origin — Express serves static files
 
+let currentSearchState = {
+    query: '',
+    page: 1,
+    limit: 10,
+    topK: 50,
+    totalPages: 1,
+    totalResults: 0
+};
+
 
 // ============================================
 // VIEW & ROUTING ENGINE
 // ============================================
 
-function showView(viewId, updateHistory = true, query = '') {
+function showView(viewId, updateHistory = true, query = '', page = 1, limit = 10) {
     document.querySelectorAll('.view').forEach(v => {
         v.classList.remove('active');
     });
@@ -36,10 +46,10 @@ function showView(viewId, updateHistory = true, query = '') {
     if (updateHistory) {
         let hash = viewId.replace('-view', '');
         if (viewId === 'results-view' && query) {
-            hash = `search?q=${encodeURIComponent(query)}`;
+            hash = `search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`;
         }
         if (window.location.hash !== `#${hash}`) {
-            history.pushState({ viewId, query }, '', `#${hash}`);
+            history.pushState({ viewId, query, page, limit }, '', `#${hash}`);
         }
     }
 }
@@ -69,13 +79,15 @@ window.addEventListener('popstate', (e) => {
 
 function handleUrlRouting(updateHistory = false) {
     const hash = window.location.hash.replace('#', '');
-    const urlParams = new URLSearchParams(window.location.search);
+    const urlParams = new URLSearchParams(window.location.search || (hash.includes('?') ? hash.substring(hash.indexOf('?')) : ''));
     const searchParam = urlParams.get('q');
+    const pageParam = parseInt(urlParams.get('page'), 10) || 1;
+    const limitParam = parseInt(urlParams.get('limit'), 10) || 10;
 
-    if (hash.startsWith('search?q=') || searchParam) {
-        const q = searchParam || decodeURIComponent(hash.replace('search?q=', ''));
+    if (hash.startsWith('search') || searchParam) {
+        const q = searchParam || decodeURIComponent(hash.split('q=')[1]?.split('&')[0] || '');
         if (q) {
-            performSearch(q, updateHistory);
+            performSearch(q, pageParam, limitParam, updateHistory);
             return;
         }
     }
@@ -92,35 +104,45 @@ function handleUrlRouting(updateHistory = false) {
 
 
 // ============================================
-// SEARCH
+// SEARCH & PAGINATION
 // ============================================
 
-async function performSearch(query, updateHistory = true) {
+async function performSearch(query, page = 1, limit = 10, updateHistory = true) {
     if (!query || query.trim() === '') return;
 
-    // Switch to results view
-    showView('results-view', updateHistory, query);
+    // Sync state
+    currentSearchState.query = query.trim();
+    currentSearchState.page = Math.max(1, page);
+    currentSearchState.limit = limit;
 
-    // Sync input fields
+    // Switch to results view
+    showView('results-view', updateHistory, query, currentSearchState.page, currentSearchState.limit);
+
+    // Sync input fields & select dropdown
     const resultsInput = document.getElementById('results-search-input');
     const landingInput = document.getElementById('landing-search-input');
+    const limitSelect = document.getElementById('limit-select');
+
     if (resultsInput) resultsInput.value = query;
     if (landingInput) landingInput.value = query;
+    if (limitSelect) limitSelect.value = String(currentSearchState.limit);
 
     // Show loading
     const resultsList = document.getElementById('results-list');
     const resultsEmpty = document.getElementById('results-empty');
     const resultsLoading = document.getElementById('results-loading');
     const resultsInfo = document.getElementById('results-info');
+    const paginationContainer = document.getElementById('pagination-container');
 
     resultsList.innerHTML = '';
     resultsEmpty.classList.add('hidden');
+    if (paginationContainer) paginationContainer.classList.add('hidden');
     resultsLoading.classList.remove('hidden');
     resultsInfo.textContent = '';
 
     try {
         const response = await fetch(
-            `${API_BASE}/api/search?q=${encodeURIComponent(query)}&topK=10`
+            `${API_BASE}/api/search?q=${encodeURIComponent(query)}&topK=50&page=${currentSearchState.page}&limit=${currentSearchState.limit}`
         );
 
         if (!response.ok) {
@@ -131,11 +153,16 @@ async function performSearch(query, updateHistory = true) {
 
         resultsLoading.classList.add('hidden');
 
-        if (data.results && data.results.length > 0) {
-            resultsInfo.textContent =
-                `About ${data.totalResults} result${data.totalResults !== 1 ? 's' : ''} for "${data.query}"`;
+        currentSearchState.totalPages = data.totalPages || 1;
+        currentSearchState.totalResults = data.totalResults || 0;
+        currentSearchState.page = data.page || 1;
 
-            renderResults(data.results);
+        if (data.results && data.results.length > 0) {
+            const pageStr = data.totalPages > 1 ? ` (Page ${data.page} of ${data.totalPages})` : '';
+            resultsInfo.textContent = `About ${data.totalResults} result${data.totalResults !== 1 ? 's' : ''} for "${data.query}"${pageStr}`;
+
+            renderResults(data.results, query);
+            renderPagination(data.page, data.totalPages);
         } else {
             resultsEmpty.classList.remove('hidden');
             resultsInfo.textContent = `No results for "${data.query}"`;
@@ -152,7 +179,22 @@ async function performSearch(query, updateHistory = true) {
     }
 }
 
-function renderResults(results) {
+function highlightQuery(text, query) {
+    if (!text) return '';
+    const safeText = escapeHtml(text);
+    if (!query || !query.trim()) return safeText;
+
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(t => t.length > 0);
+    if (terms.length === 0) return safeText;
+
+    // Escape regex special characters
+    const escapedTerms = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+
+    return safeText.replace(regex, '<mark class="highlight">$1</mark>');
+}
+
+function renderResults(results, query = '') {
     const container = document.getElementById('results-list');
     container.innerHTML = '';
 
@@ -161,10 +203,13 @@ function renderResults(results) {
         card.className = 'result-card';
         card.style.animationDelay = `${i * 0.06}s`;
 
-        const title = result.title || result.documentId;
+        const rawTitle = result.title || result.documentId;
         const url = result.documentId;
-        const snippet = result.snippet || 'No preview available';
+        const rawSnippet = result.snippet || 'No preview available';
         const score = Number(result.score).toFixed(3);
+
+        const highlightedTitle = highlightQuery(rawTitle, query);
+        const highlightedSnippet = highlightQuery(rawSnippet, query);
 
         // Extract domain for display
         let displayUrl = url;
@@ -188,8 +233,8 @@ function renderResults(results) {
                 <span class="result-url-favicon">${faviconLetter}</span>
                 ${escapeHtml(displayUrl)}
             </div>
-            <div class="result-title" onclick="window.open('${escapeAttr(url)}', '_blank')">${escapeHtml(title)}</div>
-            <div class="result-snippet">${escapeHtml(snippet)}</div>
+            <div class="result-title" onclick="window.open('${escapeAttr(url)}', '_blank')">${highlightedTitle}</div>
+            <div class="result-snippet">${highlightedSnippet}</div>
             <div class="result-score">
                 <span class="result-score-dot"></span>
                 Score: ${score}
@@ -197,6 +242,64 @@ function renderResults(results) {
         `;
 
         container.appendChild(card);
+    });
+}
+
+function renderPagination(currentPage, totalPages) {
+    const paginationContainer = document.getElementById('pagination-container');
+    const prevBtn = document.getElementById('prev-page-btn');
+    const nextBtn = document.getElementById('next-page-btn');
+    const numbersContainer = document.getElementById('pagination-numbers');
+
+    if (!paginationContainer || totalPages <= 1) {
+        if (paginationContainer) paginationContainer.classList.add('hidden');
+        return;
+    }
+
+    paginationContainer.classList.remove('hidden');
+
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+
+    if (numbersContainer) {
+        numbersContainer.innerHTML = '';
+
+        for (let p = 1; p <= totalPages; p++) {
+            const numBtn = document.createElement('button');
+            numBtn.className = `page-num-btn ${p === currentPage ? 'active' : ''}`;
+            numBtn.textContent = p;
+            numBtn.addEventListener('click', () => {
+                performSearch(currentSearchState.query, p, currentSearchState.limit, true);
+            });
+            numbersContainer.appendChild(numBtn);
+        }
+    }
+}
+
+// Pagination & Limit Event Listeners
+const prevBtn = document.getElementById('prev-page-btn');
+if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+        if (currentSearchState.page > 1) {
+            performSearch(currentSearchState.query, currentSearchState.page - 1, currentSearchState.limit, true);
+        }
+    });
+}
+
+const nextBtn = document.getElementById('next-page-btn');
+if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+        if (currentSearchState.page < currentSearchState.totalPages) {
+            performSearch(currentSearchState.query, currentSearchState.page + 1, currentSearchState.limit, true);
+        }
+    });
+}
+
+const limitSelect = document.getElementById('limit-select');
+if (limitSelect) {
+    limitSelect.addEventListener('change', (e) => {
+        const newLimit = parseInt(e.target.value, 10) || 10;
+        performSearch(currentSearchState.query, 1, newLimit, true);
     });
 }
 
@@ -383,7 +486,7 @@ if (landingForm) {
     landingForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const query = document.getElementById('landing-search-input').value.trim();
-        performSearch(query);
+        performSearch(query, 1, currentSearchState.limit, true);
     });
 }
 
@@ -393,7 +496,7 @@ if (resultsForm) {
     resultsForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const query = document.getElementById('results-search-input').value.trim();
-        performSearch(query);
+        performSearch(query, 1, currentSearchState.limit, true);
     });
 }
 

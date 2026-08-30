@@ -98,8 +98,27 @@
         </header>
 
         <main class="results-main">
-            <div id="results-info" class="results-info"></div>
+            <div class="results-toolbar">
+                <div id="results-info" class="results-info"></div>
+                <div class="limit-selector-container">
+                    <label for="limit-select">Per page:</label>
+                    <select id="limit-select" class="limit-select">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+            </div>
+
             <div id="results-list" class="results-list"></div>
+
+            <div id="pagination-container" class="pagination-container hidden">
+                <button id="prev-page-btn" class="nav-pill compact">← Previous</button>
+                <div id="pagination-numbers" class="pagination-numbers"></div>
+                <button id="next-page-btn" class="nav-pill compact">Next →</button>
+            </div>
+
             <div id="results-empty" class="results-empty hidden">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <circle cx="11" cy="11" r="8" />

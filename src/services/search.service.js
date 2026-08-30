@@ -5,7 +5,7 @@
  *
  * Methods:
  *   - rebuildIndex()   — Load all docs from MongoDB, rebuild the in-memory inverted index
- *   - search()         — Search + enrich results with title & snippet from DB
+ *   - search()         — Search + BM25 ranking + MongoDB title/snippet enrichment + Pagination
  *   - indexUrl()       — Single-page or Recursive BFS Crawling & Indexing
  *   - getStats()       — Return index + DB statistics
  *   - generateSnippet() — Extract ~200 chars centered around first query term
@@ -44,14 +44,32 @@ const rebuildIndex = async () => {
 };
 
 /**
- * Search the index and enrich results with title + snippet.
+ * Search the index, rank via BM25, enrich page results from DB, and return paginated object.
+ *
+ * @param {string} query
+ * @param {number} topK - Total candidates to rank from MinHeap
+ * @param {number} page - Page number (1-indexed)
+ * @param {number} limit - Results per page
+ * @returns {Promise<{ query: string, totalResults: number, page: number, limit: number, totalPages: number, results: object[] }>}
  */
-const search = async (query, topK) => {
+const search = async (query, topK = 50, page = 1, limit = 10) => {
 
-    const results = SearchEngine.search(query, topK);
+    const safeTopK = Math.min(Math.max(1, topK), 200);
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(Math.max(1, limit), 50);
 
-    // Enrich results with title and snippet from the database
-    for (const result of results) {
+    // Retrieve top-K ranked results from BM25 ranking engine
+    const allResults = SearchEngine.search(query, safeTopK);
+    const totalResults = allResults.length;
+
+    // Compute pagination bounds
+    const totalPages = Math.ceil(totalResults / safeLimit) || 1;
+    const currentPage = Math.min(safePage, totalPages);
+    const startIndex = (currentPage - 1) * safeLimit;
+    const paginatedResults = allResults.slice(startIndex, startIndex + safeLimit);
+
+    // Enrich only the current page's results with title and snippet from MongoDB
+    for (const result of paginatedResults) {
         const doc = await Document.findOne({
             documentId: result.documentId,
         }).lean();
@@ -64,8 +82,11 @@ const search = async (query, topK) => {
 
     return {
         query,
-        totalResults: results.length,
-        results,
+        totalResults,
+        page: currentPage,
+        limit: safeLimit,
+        totalPages,
+        results: paginatedResults,
     };
 };
 

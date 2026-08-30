@@ -411,13 +411,95 @@ input {
     padding: var(--space-8) var(--space-9) 4rem;
 }
 
-.results-info {
+.results-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-7);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--border);
+}
+
+.results-toolbar .results-info {
     font-size: 11px;
     color: var(--text-3);
-    margin-bottom: var(--space-7);
-    padding-bottom: var(--space-6);
-    border-bottom: 1px solid var(--border);
     font-family: var(--font-mono);
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.limit-selector-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+}
+
+.limit-select {
+    padding: 2px var(--space-3);
+    border-radius: var(--radius-2);
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+}
+
+.limit-select:focus {
+    border-color: var(--border-focus);
+}
+
+.pagination-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    margin-top: var(--space-8);
+    padding-top: var(--space-7);
+    border-top: 1px solid var(--border);
+}
+
+.pagination-numbers {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.page-num-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    transition: all var(--transition-fast);
+}
+
+.page-num-btn:hover {
+    border-color: var(--border-strong);
+    color: var(--text);
+}
+
+.page-num-btn.active {
+    background: var(--bg-inverse);
+    color: var(--text-4);
+    border-color: var(--bg-inverse);
+}
+
+.nav-pill:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    border-color: var(--border);
+    background: transparent;
 }
 
 /* --- Result Cards --- */
@@ -491,6 +573,15 @@ input {
     font-family: var(--font-mono);
     color: var(--text-2);
     line-height: 18px;
+}
+
+mark.highlight {
+    background: rgba(16, 185, 129, 0.16);
+    color: #059669;
+    font-weight: 600;
+    padding: 1px 3px;
+    border-radius: var(--radius-1);
+    font-family: inherit;
 }
 
 .result-score {
