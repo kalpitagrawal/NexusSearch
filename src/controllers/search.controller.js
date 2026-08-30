@@ -15,7 +15,7 @@ import * as SearchService from "../services/search.service.js";
  * GET /api/search?q=redis&topK=10
  */
 const searchDocuments = async (req, res) => {
-    const { q, topK = "50", page = "1", limit = "10" } = req.query;
+    const { q, topK = "50", page = "1", limit = "10", domain = "all" } = req.query;
 
     if (!q || q.trim() === "") {
         return res.status(400).json({
@@ -28,7 +28,7 @@ const searchDocuments = async (req, res) => {
         const parsedPage = parseInt(page, 10) || 1;
         const parsedLimit = parseInt(limit, 10) || 10;
 
-        const results = await SearchService.search(q, parsedTopK, parsedPage, parsedLimit);
+        const results = await SearchService.search(q, parsedTopK, parsedPage, parsedLimit, domain);
         return res.status(200).json(results);
     } catch (error) {
         return res.status(500).json({

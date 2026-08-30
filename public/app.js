@@ -6,6 +6,7 @@
  * - HTML5 History & Hash Navigation (Browser Back / Forward buttons work!)
  * - Search API integration with BM25 score rendering & Query Highlighting
  * - Real-time Autocompletion & Search Suggestions via Trie Prefix Index
+ * - Domain Facets & Filtering Pills (e.g. wikipedia.org, geeksforgeeks.org)
  * - Pagination & Dynamic Top-K / Results-per-page selector
  * - Single-Page & Recursive Web Crawling with Live Progress/Summary
  * - Index statistics with animated counters
@@ -19,6 +20,7 @@ let currentSearchState = {
     page: 1,
     limit: 10,
     topK: 50,
+    domain: 'all',
     totalPages: 1,
     totalResults: 0
 };
@@ -28,7 +30,7 @@ let currentSearchState = {
 // VIEW & ROUTING ENGINE
 // ============================================
 
-function showView(viewId, updateHistory = true, query = '', page = 1, limit = 10) {
+function showView(viewId, updateHistory = true, query = '', page = 1, limit = 10, domain = 'all') {
     document.querySelectorAll('.view').forEach(v => {
         v.classList.remove('active');
     });
@@ -47,10 +49,10 @@ function showView(viewId, updateHistory = true, query = '', page = 1, limit = 10
     if (updateHistory) {
         let hash = viewId.replace('-view', '');
         if (viewId === 'results-view' && query) {
-            hash = `search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`;
+            hash = `search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}&domain=${encodeURIComponent(domain)}`;
         }
         if (window.location.hash !== `#${hash}`) {
-            history.pushState({ viewId, query, page, limit }, '', `#${hash}`);
+            history.pushState({ viewId, query, page, limit, domain }, '', `#${hash}`);
         }
     }
 }
@@ -84,11 +86,12 @@ function handleUrlRouting(updateHistory = false) {
     const searchParam = urlParams.get('q');
     const pageParam = parseInt(urlParams.get('page'), 10) || 1;
     const limitParam = parseInt(urlParams.get('limit'), 10) || 10;
+    const domainParam = urlParams.get('domain') || 'all';
 
     if (hash.startsWith('search') || searchParam) {
         const q = searchParam || decodeURIComponent(hash.split('q=')[1]?.split('&')[0] || '');
         if (q) {
-            performSearch(q, pageParam, limitParam, updateHistory);
+            performSearch(q, pageParam, limitParam, domainParam, updateHistory);
             return;
         }
     }
@@ -105,10 +108,10 @@ function handleUrlRouting(updateHistory = false) {
 
 
 // ============================================
-// SEARCH & PAGINATION
+// SEARCH, FACETS & PAGINATION
 // ============================================
 
-async function performSearch(query, page = 1, limit = 10, updateHistory = true) {
+async function performSearch(query, page = 1, limit = 10, domain = 'all', updateHistory = true) {
     if (!query || query.trim() === '') return;
 
     // Close any open suggestion dropdowns
@@ -118,9 +121,10 @@ async function performSearch(query, page = 1, limit = 10, updateHistory = true) 
     currentSearchState.query = query.trim();
     currentSearchState.page = Math.max(1, page);
     currentSearchState.limit = limit;
+    currentSearchState.domain = domain || 'all';
 
     // Switch to results view
-    showView('results-view', updateHistory, query, currentSearchState.page, currentSearchState.limit);
+    showView('results-view', updateHistory, query, currentSearchState.page, currentSearchState.limit, currentSearchState.domain);
 
     // Sync input fields & select dropdown
     const resultsInput = document.getElementById('results-search-input');
@@ -137,16 +141,18 @@ async function performSearch(query, page = 1, limit = 10, updateHistory = true) 
     const resultsLoading = document.getElementById('results-loading');
     const resultsInfo = document.getElementById('results-info');
     const paginationContainer = document.getElementById('pagination-container');
+    const facetsContainer = document.getElementById('facets-container');
 
     resultsList.innerHTML = '';
     resultsEmpty.classList.add('hidden');
     if (paginationContainer) paginationContainer.classList.add('hidden');
+    if (facetsContainer) facetsContainer.classList.add('hidden');
     resultsLoading.classList.remove('hidden');
     resultsInfo.textContent = '';
 
     try {
         const response = await fetch(
-            `${API_BASE}/api/search?q=${encodeURIComponent(query)}&topK=50&page=${currentSearchState.page}&limit=${currentSearchState.limit}`
+            `${API_BASE}/api/search?q=${encodeURIComponent(query)}&topK=50&page=${currentSearchState.page}&limit=${currentSearchState.limit}&domain=${encodeURIComponent(currentSearchState.domain)}`
         );
 
         if (!response.ok) {
@@ -160,16 +166,21 @@ async function performSearch(query, page = 1, limit = 10, updateHistory = true) 
         currentSearchState.totalPages = data.totalPages || 1;
         currentSearchState.totalResults = data.totalResults || 0;
         currentSearchState.page = data.page || 1;
+        currentSearchState.domain = data.activeDomain || 'all';
 
         if (data.results && data.results.length > 0) {
             const pageStr = data.totalPages > 1 ? ` (Page ${data.page} of ${data.totalPages})` : '';
-            resultsInfo.textContent = `About ${data.totalResults} result${data.totalResults !== 1 ? 's' : ''} for "${data.query}"${pageStr}`;
+            const domainFilterStr = currentSearchState.domain !== 'all' ? ` in ${currentSearchState.domain}` : '';
+            resultsInfo.textContent = `About ${data.totalResults} result${data.totalResults !== 1 ? 's' : ''} for "${data.query}"${domainFilterStr}${pageStr}`;
 
+            renderFacets(data.facets, currentSearchState.domain);
             renderResults(data.results, query);
             renderPagination(data.page, data.totalPages);
         } else {
             resultsEmpty.classList.remove('hidden');
-            resultsInfo.textContent = `No results for "${data.query}"`;
+            const domainFilterStr = currentSearchState.domain !== 'all' ? ` in ${currentSearchState.domain}` : '';
+            resultsInfo.textContent = `No results for "${data.query}"${domainFilterStr}`;
+            renderFacets(data.facets, currentSearchState.domain);
         }
 
     } catch (error) {
@@ -181,6 +192,35 @@ async function performSearch(query, page = 1, limit = 10, updateHistory = true) 
             </div>
         `;
     }
+}
+
+function renderFacets(facets, activeDomain = 'all') {
+    const container = document.getElementById('facets-container');
+    if (!container || !facets || facets.length <= 1) {
+        if (container) container.classList.add('hidden');
+        return;
+    }
+
+    container.innerHTML = '';
+    container.classList.remove('hidden');
+
+    facets.forEach(f => {
+        const pill = document.createElement('button');
+        const isActive = (f.domain === activeDomain) || (!activeDomain && f.domain === 'all');
+        pill.className = `facet-pill ${isActive ? 'active' : ''}`;
+
+        const label = f.domain === 'all' ? 'All' : f.domain;
+        pill.innerHTML = `
+            <span>${escapeHtml(label)}</span>
+            <span class="facet-count">(${f.count})</span>
+        `;
+
+        pill.addEventListener('click', () => {
+            performSearch(currentSearchState.query, 1, currentSearchState.limit, f.domain, true);
+        });
+
+        container.appendChild(pill);
+    });
 }
 
 function highlightQuery(text, query) {
@@ -273,7 +313,7 @@ function renderPagination(currentPage, totalPages) {
             numBtn.className = `page-num-btn ${p === currentPage ? 'active' : ''}`;
             numBtn.textContent = p;
             numBtn.addEventListener('click', () => {
-                performSearch(currentSearchState.query, p, currentSearchState.limit, true);
+                performSearch(currentSearchState.query, p, currentSearchState.limit, currentSearchState.domain, true);
             });
             numbersContainer.appendChild(numBtn);
         }
@@ -285,7 +325,7 @@ const prevBtn = document.getElementById('prev-page-btn');
 if (prevBtn) {
     prevBtn.addEventListener('click', () => {
         if (currentSearchState.page > 1) {
-            performSearch(currentSearchState.query, currentSearchState.page - 1, currentSearchState.limit, true);
+            performSearch(currentSearchState.query, currentSearchState.page - 1, currentSearchState.limit, currentSearchState.domain, true);
         }
     });
 }
@@ -294,7 +334,7 @@ const nextBtn = document.getElementById('next-page-btn');
 if (nextBtn) {
     nextBtn.addEventListener('click', () => {
         if (currentSearchState.page < currentSearchState.totalPages) {
-            performSearch(currentSearchState.query, currentSearchState.page + 1, currentSearchState.limit, true);
+            performSearch(currentSearchState.query, currentSearchState.page + 1, currentSearchState.limit, currentSearchState.domain, true);
         }
     });
 }
@@ -303,7 +343,7 @@ const limitSelect = document.getElementById('limit-select');
 if (limitSelect) {
     limitSelect.addEventListener('change', (e) => {
         const newLimit = parseInt(e.target.value, 10) || 10;
-        performSearch(currentSearchState.query, 1, newLimit, true);
+        performSearch(currentSearchState.query, 1, newLimit, currentSearchState.domain, true);
     });
 }
 
@@ -365,7 +405,7 @@ function setupAutocomplete(inputId, dropdownId) {
                             e.preventDefault();
                             input.value = fullQuery;
                             dropdown.classList.add('hidden');
-                            performSearch(fullQuery, 1, currentSearchState.limit, true);
+                            performSearch(fullQuery, 1, currentSearchState.limit, currentSearchState.domain, true);
                         });
 
                         dropdown.appendChild(item);
@@ -580,7 +620,7 @@ if (landingForm) {
     landingForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const query = document.getElementById('landing-search-input').value.trim();
-        performSearch(query, 1, currentSearchState.limit, true);
+        performSearch(query, 1, currentSearchState.limit, currentSearchState.domain, true);
     });
 }
 
@@ -590,7 +630,7 @@ if (resultsForm) {
     resultsForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const query = document.getElementById('results-search-input').value.trim();
-        performSearch(query, 1, currentSearchState.limit, true);
+        performSearch(query, 1, currentSearchState.limit, currentSearchState.domain, true);
     });
 }
 

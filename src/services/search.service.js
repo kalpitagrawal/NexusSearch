@@ -47,28 +47,75 @@ const rebuildIndex = async () => {
  * Search the index, rank via BM25, enrich page results from DB, and return paginated object.
  *
  * @param {string} query
+/**
+ * Helper to extract main domain/hostname from a document URL.
+ * E.g. "https://en.wikipedia.org/wiki/Algorithm" → "wikipedia.org"
+ */
+const extractDomain = (urlStr) => {
+    try {
+        const hostname = new URL(urlStr).hostname;
+        const parts = hostname.split(".");
+        if (parts.length >= 2) {
+            return parts.slice(-2).join(".");
+        }
+        return hostname;
+    } catch (_) {
+        return "other";
+    }
+};
+
+/**
+ * Search the index, rank via BM25 + Phrase Boost, compute domain facets, apply domain filtering, and return paginated object.
+ *
+ * @param {string} query
  * @param {number} topK - Total candidates to rank from MinHeap
  * @param {number} page - Page number (1-indexed)
  * @param {number} limit - Results per page
- * @returns {Promise<{ query: string, totalResults: number, page: number, limit: number, totalPages: number, results: object[] }>}
+ * @param {string} targetDomain - Optional domain filter (e.g. "wikipedia.org" or "all")
+ * @returns {Promise<{ query: string, totalResults: number, page: number, limit: number, totalPages: number, activeDomain: string, facets: object[], results: object[] }>}
  */
-const search = async (query, topK = 50, page = 1, limit = 10) => {
+const search = async (query, topK = 50, page = 1, limit = 10, targetDomain = "all") => {
 
     const safeTopK = Math.min(Math.max(1, topK), 200);
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(Math.max(1, limit), 50);
 
-    // Retrieve top-K ranked results from BM25 ranking engine
+    // 1. Retrieve top-K ranked results from BM25 ranking engine
     const allResults = SearchEngine.search(query, safeTopK);
-    const totalResults = allResults.length;
 
-    // Compute pagination bounds
+    // 2. Build domain facets map across all candidate results
+    const facetCounts = new Map();
+    facetCounts.set("all", allResults.length);
+
+    allResults.forEach(r => {
+        const domain = extractDomain(r.documentId);
+        facetCounts.set(domain, (facetCounts.get(domain) || 0) + 1);
+    });
+
+    const facets = Array.from(facetCounts.entries()).map(([domain, count]) => ({
+        domain,
+        count
+    }));
+
+    // 3. Apply domain filtering if targetDomain is specified and not "all"
+    let filteredResults = allResults;
+    if (targetDomain && targetDomain !== "all") {
+        const cleanTarget = targetDomain.toLowerCase();
+        filteredResults = allResults.filter(r => {
+            const dom = extractDomain(r.documentId).toLowerCase();
+            return dom === cleanTarget || r.documentId.toLowerCase().includes(cleanTarget);
+        });
+    }
+
+    const totalResults = filteredResults.length;
+
+    // 4. Compute pagination bounds
     const totalPages = Math.ceil(totalResults / safeLimit) || 1;
     const currentPage = Math.min(safePage, totalPages);
     const startIndex = (currentPage - 1) * safeLimit;
-    const paginatedResults = allResults.slice(startIndex, startIndex + safeLimit);
+    const paginatedResults = filteredResults.slice(startIndex, startIndex + safeLimit);
 
-    // Enrich only the current page's results with title and snippet from MongoDB
+    // 5. Enrich current page's results with title and snippet from MongoDB
     for (const result of paginatedResults) {
         const doc = await Document.findOne({
             documentId: result.documentId,
@@ -86,6 +133,8 @@ const search = async (query, topK = 50, page = 1, limit = 10) => {
         page: currentPage,
         limit: safeLimit,
         totalPages,
+        activeDomain: targetDomain || "all",
+        facets,
         results: paginatedResults,
     };
 };
