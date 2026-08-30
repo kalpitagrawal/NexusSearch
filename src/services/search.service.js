@@ -265,4 +265,9 @@ const generateSnippet = (content, query) => {
     return snippet;
 };
 
-export { rebuildIndex, search, indexUrl, getStats };
+const getSuggestions = (prefix, limit = 5) => {
+    if (!prefix || !prefix.trim()) return [];
+    return invertedIndex.getSuggestions(prefix.trim(), limit);
+};
+
+export { rebuildIndex, search, indexUrl, getStats, getSuggestions };

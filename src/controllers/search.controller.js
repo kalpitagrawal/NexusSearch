@@ -3,26 +3,18 @@
  *
  * Direct port of SearchController.java
  *
- * Returns flat JSON responses matching Java's ResponseEntity.ok(Map):
- *   - Search: { query, totalResults, results }
- *   - Index:  { status, url, title, tokensIndexed }
- *   - Stats:  { totalDocuments, totalTerms, averageDocumentLength, documentsInDatabase }
- *
  * Endpoints:
  *   GET  /api/search?q=redis&topK=10  — Search the index
  *   POST /api/index  { url: "..." }    — Crawl and index a URL
  *   GET  /api/stats                    — Return index statistics
+ *   GET  /api/suggest?q=alg            — Return autocompletion suggestions
  */
 import * as SearchService from "../services/search.service.js";
 
 /**
  * GET /api/search?q=redis&topK=10
- *
- * Search the index and return ranked results.
- * Port of SearchController.search() in Java.
  */
 const searchDocuments = async (req, res) => {
-
     const { q, topK = "50", page = "1", limit = "10" } = req.query;
 
     if (!q || q.trim() === "") {
@@ -48,13 +40,8 @@ const searchDocuments = async (req, res) => {
 
 /**
  * POST /api/index
- * Body: { "url": "https://example.com" }
- *
- * Crawl a URL and add it to the search index.
- * Port of SearchController.indexUrl() in Java.
  */
 const indexUrl = async (req, res) => {
-
     const { url, maxDepth = 1, maxPages = 1 } = req.body;
 
     if (!url || url.trim() === "") {
@@ -81,12 +68,8 @@ const indexUrl = async (req, res) => {
 
 /**
  * GET /api/stats
- *
- * Return index statistics.
- * Port of SearchController.stats() in Java.
  */
 const getStats = async (req, res) => {
-
     try {
         const stats = await SearchService.getStats();
         return res.status(200).json(stats);
@@ -98,4 +81,29 @@ const getStats = async (req, res) => {
     }
 };
 
-export { searchDocuments, indexUrl, getStats };
+/**
+ * GET /api/suggest?q=alg&limit=5
+ */
+const getSuggestions = async (req, res) => {
+    const { q, limit = "5" } = req.query;
+
+    if (!q || q.trim() === "") {
+        return res.status(200).json({ query: "", suggestions: [] });
+    }
+
+    try {
+        const parsedLimit = parseInt(limit, 10) || 5;
+        const suggestions = SearchService.getSuggestions(q.trim(), parsedLimit);
+        return res.status(200).json({
+            query: q.trim(),
+            suggestions
+        });
+    } catch (error) {
+        return res.status(500).json({
+            error: "Failed to fetch suggestions.",
+            message: error.message
+        });
+    }
+};
+
+export { searchDocuments, indexUrl, getStats, getSuggestions };

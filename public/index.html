@@ -34,13 +34,14 @@
                         <path d="m21 21-4.35-4.35" />
                     </svg>
                     <input id="landing-search-input" type="text" placeholder="Search the web..."
-                        aria-label="Search query">
+                        aria-label="Search query" autocomplete="off">
                     <button type="submit" class="search-submit" aria-label="Search">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M5 12h14M12 5l7 7-7 7" />
                         </svg>
                     </button>
                 </div>
+                <div id="landing-suggestions" class="suggestions-dropdown hidden"></div>
             </form>
 
             <nav class="landing-nav">
@@ -73,13 +74,14 @@
                         <circle cx="11" cy="11" r="8" />
                         <path d="m21 21-4.35-4.35" />
                     </svg>
-                    <input id="results-search-input" type="text" placeholder="Search..." aria-label="Search query">
+                    <input id="results-search-input" type="text" placeholder="Search..." aria-label="Search query" autocomplete="off">
                     <button type="submit" class="search-submit" aria-label="Search">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M5 12h14M12 5l7 7-7 7" />
                         </svg>
                     </button>
                 </div>
+                <div id="results-suggestions" class="suggestions-dropdown hidden"></div>
             </form>
             <nav class="header-nav">
                 <button class="nav-pill compact" data-view="index-view">

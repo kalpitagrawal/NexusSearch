@@ -11,6 +11,7 @@
  * Direct port of InvertedIndex.java
  */
 import { PostingList } from "./PostingList.js";
+import { trie } from "./Trie.js";
 
 class InvertedIndex {
 
@@ -24,7 +25,7 @@ class InvertedIndex {
 
     /**
      * Add a document to the index.
-     * For each token, creates or updates the PostingList entry.
+     * For each token, creates or updates the PostingList entry and populates the Autocomplete Trie.
      *
      * @param {string} documentId
      * @param {string[]} tokens - processed tokens from TextProcessor
@@ -43,7 +44,18 @@ class InvertedIndex {
             }
 
             postingList.addPosition(documentId, i);
+            trie.insert(token, 1);
         }
+    }
+
+    /**
+     * Get suggestions for a prefix.
+     * @param {string} prefix
+     * @param {number} [limit=5]
+     * @returns {string[]}
+     */
+    getSuggestions(prefix, limit = 5) {
+        return trie.getSuggestions(prefix, limit);
     }
 
     /**

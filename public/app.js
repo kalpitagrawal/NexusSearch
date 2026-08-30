@@ -5,6 +5,7 @@
  * - View routing (landing / results / index / stats)
  * - HTML5 History & Hash Navigation (Browser Back / Forward buttons work!)
  * - Search API integration with BM25 score rendering & Query Highlighting
+ * - Real-time Autocompletion & Search Suggestions via Trie Prefix Index
  * - Pagination & Dynamic Top-K / Results-per-page selector
  * - Single-Page & Recursive Web Crawling with Live Progress/Summary
  * - Index statistics with animated counters
@@ -110,6 +111,9 @@ function handleUrlRouting(updateHistory = false) {
 async function performSearch(query, page = 1, limit = 10, updateHistory = true) {
     if (!query || query.trim() === '') return;
 
+    // Close any open suggestion dropdowns
+    document.querySelectorAll('.suggestions-dropdown').forEach(d => d.classList.add('hidden'));
+
     // Sync state
     currentSearchState.query = query.trim();
     currentSearchState.page = Math.max(1, page);
@@ -184,7 +188,7 @@ function highlightQuery(text, query) {
     const safeText = escapeHtml(text);
     if (!query || !query.trim()) return safeText;
 
-    const terms = query.trim().toLowerCase().split(/\s+/).filter(t => t.length > 0);
+    const terms = query.trim().toLowerCase().replace(/"/g, '').split(/\s+/).filter(t => t.length > 0);
     if (terms.length === 0) return safeText;
 
     // Escape regex special characters
@@ -302,6 +306,96 @@ if (limitSelect) {
         performSearch(currentSearchState.query, 1, newLimit, true);
     });
 }
+
+
+// ============================================
+// AUTOCOMPLETE & SEARCH SUGGESTIONS
+// ============================================
+
+function setupAutocomplete(inputId, dropdownId) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    if (!input || !dropdown) return;
+
+    let debounceTimer = null;
+
+    input.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        const query = input.value.trim();
+
+        if (!query || query.length < 2) {
+            dropdown.innerHTML = '';
+            dropdown.classList.add('hidden');
+            return;
+        }
+
+        const words = query.split(/\s+/);
+        const lastWord = words[words.length - 1];
+
+        if (!lastWord || lastWord.length < 2) {
+            dropdown.innerHTML = '';
+            dropdown.classList.add('hidden');
+            return;
+        }
+
+        debounceTimer = setTimeout(async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/suggest?q=${encodeURIComponent(lastWord)}&limit=5`);
+                const data = await res.json();
+
+                if (data.suggestions && data.suggestions.length > 0) {
+                    dropdown.innerHTML = '';
+
+                    data.suggestions.forEach(suggestion => {
+                        const item = document.createElement('div');
+                        item.className = 'suggestion-item';
+
+                        const prefixWords = words.slice(0, words.length - 1);
+                        const fullQuery = [...prefixWords, suggestion].join(' ');
+
+                        item.innerHTML = `
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="m21 21-4.35-4.35" />
+                            </svg>
+                            <span>${escapeHtml(fullQuery)}</span>
+                        `;
+
+                        item.addEventListener('mousedown', (e) => {
+                            e.preventDefault();
+                            input.value = fullQuery;
+                            dropdown.classList.add('hidden');
+                            performSearch(fullQuery, 1, currentSearchState.limit, true);
+                        });
+
+                        dropdown.appendChild(item);
+                    });
+
+                    dropdown.classList.remove('hidden');
+                } else {
+                    dropdown.classList.add('hidden');
+                }
+            } catch (_) {
+                dropdown.classList.add('hidden');
+            }
+        }, 150);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+
+    input.addEventListener('focus', () => {
+        if (dropdown.children.length > 0 && input.value.trim().length >= 2) {
+            dropdown.classList.remove('hidden');
+        }
+    });
+}
+
+setupAutocomplete('landing-search-input', 'landing-suggestions');
+setupAutocomplete('results-search-input', 'results-suggestions');
 
 
 // ============================================
