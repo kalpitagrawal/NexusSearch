@@ -1,6 +1,6 @@
 <div align="center">
 
-# Search Engine — MERN & Inverted Index Web Search Engine
+# NexusSearch — Full-Stack BM25 Web Search Engine
 
 **A production-grade, full-stack web search engine with Okapi BM25 relevance scoring, in-memory inverted index, Trie autocomplete, and recursive web crawler.**
 
@@ -19,7 +19,7 @@
 
 <br/>
 
-[Explore Live Demo](https://search-engine-henna.vercel.app) · [Report Bug](https://github.com/kalpitagrawal/SearchEngine/issues) · [Request Feature](https://github.com/kalpitagrawal/SearchEngine/issues)
+[Explore Live Demo](https://search-engine-henna.vercel.app) · [Report Bug](https://github.com/kalpitagrawal/NexusSearch/issues) · [Request Feature](https://github.com/kalpitagrawal/NexusSearch/issues)
 
 </div>
 
@@ -153,7 +153,7 @@ Instead of executing a global array sort ($O(N \log N)$) over all matched docume
 ## Project Structure
 
 ```text
-SearchEngine/
+NexusSearch/
 ├── public/
 │   ├── app.js               # Frontend router, state manager, and view engine
 │   ├── index.html           # Single-page application markup
@@ -299,8 +299,8 @@ Retrieve live system metrics from the in-memory inverted index and database.
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/kalpitagrawal/SearchEngine.git
-cd SearchEngine
+git clone https://github.com/kalpitagrawal/NexusSearch.git
+cd NexusSearch
 ```
 
 ### 2. Configuration
@@ -312,7 +312,7 @@ PORT=8080
 CORS_ORIGIN=*
 USE_MEMORY_DB=true
 CRAWLER_TIMEOUT_MS=10000
-CRAWLER_USER_AGENT=SearchEngineBot/1.0
+CRAWLER_USER_AGENT=NexusSearchBot/1.0
 ```
 
 *(Setting `USE_MEMORY_DB=true` uses `mongodb-memory-server` backed by local disk storage at `./data/db`, requiring no external database installation for development).*
@@ -354,7 +354,7 @@ Open `http://localhost:8080` in your browser.
 
 ## Contributing
 
-Contributions, issues, and feature requests are welcome. Feel free to check the [issues page](https://github.com/kalpitagrawal/SearchEngine/issues).
+Contributions, issues, and feature requests are welcome. Feel free to check the [issues page](https://github.com/kalpitagrawal/NexusSearch/issues).
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/improvement`)
