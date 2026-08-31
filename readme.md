@@ -1,122 +1,170 @@
-# 🔍 Search Engine — MERN Stack (BM25 Engine)
+# Full-Stack Web Search Engine
 
-A full-stack web search engine built from scratch using Node.js, Express, and MongoDB. Features an in-memory inverted index, **BM25 ranking algorithm**, custom **Min-Heap top-K priority queue**, web crawler (`axios` + `cheerio`), and a sleek single-page frontend.
+A high-performance web search engine built from scratch using Node.js, Express, MongoDB Atlas, and Vanilla JavaScript. The system implements an in-memory inverted index, Okapi BM25 ranking model, Trie-based autocomplete, Porter Stemmer normalization, Min-Heap top-K candidate selection, and a recursive web crawler.
 
----
+## Live Deployments
 
-## 📌 Features & Highlights
-
-- **BM25 Relevance Scoring**: Industry-standard ranking algorithm with term frequency saturation ($k_1=1.5$), document length normalization ($b=0.75$), and Robertson $+1$ term smoothing ($\log_{10}(1 + N/df)$).
-- **Min-Heap Top-K Selection**: Efficient priority queue ($O(N \log K)$) selecting the top-$K$ highest-scoring results without sorting all candidates.
-- **In-Memory Inverted Index**: `Map<token, PostingList>` data structure with `documentLengths` tracking for instant term lookup.
-- **Persistent Local Database**: Local disk-backed database at `./data/db` using MongoDB WiredTiger engine — indexed documents persist permanently across server restarts.
-- **Web Crawler (`axios` + `cheerio`)**: HTML parsing pipeline fetching web pages and stripping non-content elements (`script`, `style`, `nav`, `footer`, `header`, `aside`, `.sidebar`, `.menu`, `.ad`).
-- **REST API & Startup Rebuild**: Automatically rebuilds inverted index from stored documents on server startup (`rebuildIndex()`).
-- **Modern UI**: Dark/monochrome glassmorphism design using JetBrains Mono typography, 4 views (Landing, Results, Index URL, Stats), HTML5 History API (browser Back/Forward support), and keyboard shortcuts (`/` to focus, `Esc` to go home).
+- **Web Application (Vercel):** [https://search-engine-henna.vercel.app](https://search-engine-henna.vercel.app)
+- **API Server (Render):** [https://searchengine-e8uv.onrender.com](https://searchengine-e8uv.onrender.com)
+- **Cloud Database:** MongoDB Atlas
 
 ---
 
-## 🛠 Tech Stack
+## Key Features
 
-| Layer | Technology |
-|---|---|
-| Runtime | Node.js (ES Modules) |
-| Web Framework | Express.js |
-| Storage | Local MongoDB (`mongodb-memory-server` + WiredTiger) / MongoDB Atlas |
-| HTML Parsing | Cheerio + Axios |
-| Core Engine | Vanilla JavaScript (`PostingList`, `InvertedIndex`, `RankingEngine`, `MinHeap`) |
-| Frontend | Vanilla HTML5 / CSS3 (JetBrains Mono) / JS |
+- **Okapi BM25 Ranking Engine:** Evaluates document relevance using term frequency saturation ($k_1 = 1.5$), document length normalization ($b = 0.75$), and smoothed Inverse Document Frequency.
+- **Trie Prefix Autocomplete:** Maintains an in-memory Trie index for instant prefix lookup and search query recommendations.
+- **Porter Stemming Algorithm:** Reduces terms to their word stems (e.g., "running" -> "run") for enhanced recall.
+- **Min-Heap Priority Queue:** Optimizes top-K document retrieval in $O(N \log K)$ time complexity without fully sorting all candidate documents.
+- **Single & Recursive Web Crawler:** Fetches external URLs, extracts content, strips boilerplate elements (`script`, `style`, `nav`, `footer`, `ad`), extracts outbound hyperlinked URLs, and indexes pages up to configurable depth limits.
+- **In-Memory Inverted Index:** Utilizes a `Map<token, PostingList>` structure paired with document length tracking for sub-millisecond query evaluation.
+- **Dual Storage Engine:** Supports local disk-backed storage via WiredTiger for offline development and MongoDB Atlas for production persistence.
+- **Automated Index Reconstruction:** Automatically loads and rebuilds the inverted index into RAM upon server startup.
 
 ---
 
-## 📁 Project Structure
+## System Architecture
+
+```text
++-----------------------------------------------------------------------------------+
+|                                 FRONTEND (Vercel)                                 |
+|               Single-Page Application (HTML5, Vanilla CSS, JS Engine)              |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         | REST API / Reverse Proxy
+                                         v
++-----------------------------------------------------------------------------------+
+|                                 BACKEND (Render)                                  |
+|                                    Express.js                                     |
+|  +-------------------+   +--------------------+   +----------------------------+  |
+|  |   Web Crawler     |   |   Text Processor   |   |   Trie Autocomplete        |  |
+|  |  Axios / Cheerio  |   |  Porter Stemmer    |   |   Prefix Index             |  |
+|  +-------------------+   +--------------------+   +----------------------------+  |
+|                                        |                                          |
+|                                        v                                          |
+|  +-----------------------------------------------------------------------------+  |
+|  |                       In-Memory Inverted Index                              |  |
+|  |                       Map<token, PostingList>                               |  |
+|  +-----------------------------------------------------------------------------+  |
+|                                        |                                          |
+|                                        v                                          |
+|  +-----------------------------------------------------------------------------+  |
+|  |                 BM25 Ranking Engine + Min-Heap Top-K                        |  |
+|  +-----------------------------------------------------------------------------+  |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         | Persistent Storage
+                                         v
++-----------------------------------------------------------------------------------+
+|                              DATABASE (MongoDB Atlas)                             |
+|                             Document Store & Schemas                              |
++-----------------------------------------------------------------------------------+
+```
+
+---
+
+## Technical Stack
+
+- **Backend Runtime:** Node.js (ES Modules)
+- **Web Framework:** Express.js
+- **Database Layer:** MongoDB Atlas / Mongoose ORM
+- **HTML Parsing Engine:** Cheerio & Axios
+- **Core Algorithms:** Custom implementation of Inverted Index, BM25, Min-Heap, Trie, and Porter Stemmer
+- **Frontend Stack:** HTML5, CSS3 (JetBrains Mono design system), Vanilla JS (Fetch API, History API)
+- **Hosting Platforms:** Render (API Service), Vercel (Frontend CDN), MongoDB Atlas (Cloud DB)
+
+---
+
+## Project Structure
 
 ```text
 GithubSearchEngine/
 ├── public/
-│   ├── app.js               # Frontend routing, search, index & stats logic
-│   ├── index.html           # Landing, Results, Index, and Stats views
-│   └── style.css            # Design system, JetBrains Mono font, glassmorphism
+│   ├── app.js               # Frontend router, state manager, and view engine
+│   ├── index.html           # Single-page interface markup
+│   └── style.css            # Custom design tokens, glassmorphism layout, typography
 ├── src/
 │   ├── controllers/
-│   │   └── search.controller.js  # REST API handlers
+│   │   └── search.controller.js  # HTTP request controllers
 │   ├── crawler/
-│   │   └── WebCrawler.js    # Cheerio/Axios HTML scraper
+│   │   └── WebCrawler.js    # Axios & Cheerio scraper pipeline
 │   ├── db/
-│   │   └── index.js         # Persistent local DB & MongoDB connection
+│   │   └── index.js         # Connection initializer for Atlas / local memory DB
 │   ├── engine/
-│   │   ├── InvertedIndex.js # Map<token, PostingList> index
-│   │   ├── PostingList.js   # Map<documentId, frequency>
-│   │   ├── RankingEngine.js # BM25 scoring & MinHeap top-K selection
-│   │   ├── SearchEngine.js  # Search pipeline orchestrator
-│   │   ├── SearchResult.js  # Search result model
-│   │   └── TextProcessor.js # Tokenizer & 12 stop-words filter
+│   │   ├── InvertedIndex.js # Inverted index data structure
+│   │   ├── MinHeap.js       # Priority queue for top-K document selection
+│   │   ├── PorterStemmer.js # Suffix-stripping stemming implementation
+│   │   ├── PostingList.js   # Document frequency map
+│   │   ├── RankingEngine.js # BM25 relevance calculation module
+│   │   ├── SearchEngine.js  # Orchestrator for searching and indexing
+│   │   ├── SearchResult.js  # Ranked result item model
+│   │   ├── TextProcessor.js # Tokenizer, stop-word filter, stemmer integration
+│   │   └── Trie.js          # Prefix tree implementation for autocomplete
 │   ├── models/
-│   │   └── document.model.js# Mongoose Document schema
+│   │   └── document.model.js# Mongoose document schema
 │   ├── routes/
-│   │   └── search.routes.js # Express router (/api/search, /api/index, /api/stats)
+│   │   └── search.routes.js # API route declarations
 │   ├── services/
-│   │   └── search.service.js# Business logic, rebuildIndex(), snippet generator
+│   │   └── search.service.js# Core business operations & index rebuild logic
 │   ├── app.js               # Express application configuration
-│   ├── constants.js         # DB constants
-│   └── index.js             # Application entry point
-├── .env                     # Environment variables
-├── .gitignore
-└── package.json
+│   ├── constants.js         # Application constants
+│   └── index.js             # Server entry point
+├── .env                     # Environment variable definitions
+├── vercel.json              # Vercel deployment & API rewrite configuration
+├── package.json
+└── README.md
 ```
 
 ---
 
-## ⚙️ Quick Start
+## Algorithm Specifications
 
-### 1. Clone & Install
-```bash
-cd GithubSearchEngine
-npm install
-```
+### BM25 Relevance Scoring
 
-### 2. Configure Environment (`.env`)
-By default, the engine runs in **Local Persistent Mode** (no MongoDB installation required):
-```env
-PORT=8080
-CORS_ORIGIN=*
-USE_MEMORY_DB=true
-CRAWLER_TIMEOUT_MS=10000
-CRAWLER_USER_AGENT=SearchEngineBot/1.0
-```
+Document scoring is executed using the Okapi BM25 formulation:
 
-*For MongoDB Atlas Production mode, set `USE_MEMORY_DB=false` and provide `MONGO_URI`.*
+$$\text{Score}(D, Q) = \sum_{i=1}^{n} \text{IDF}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgdl}}\right)}$$
 
-### 3. Start Development Server
-```bash
-npm run dev
-```
-Open **`http://localhost:8080`** in your browser.
+Where:
+- $k_1 = 1.5$: Controls term frequency saturation.
+- $b = 0.75$: Adjusts document length normalization penalty.
+- $\text{IDF}(q_i) = \log_{10}\left(1 + \frac{N}{df_i}\right)$: Robertson $+1$ smoothed Inverse Document Frequency.
+- $|D|$: Length of the target document in terms.
+- $\text{avgdl}$: Average term count across all indexed documents.
+
+### Min-Heap Top-K Selection
+
+Instead of executing a global sort ($O(N \log N)$) across all matching documents, candidate results are filtered through a Min-Heap of capacity $K$. The computational complexity per query reduces to $O(N \log K)$, where $N$ is the number of matched documents.
 
 ---
 
-## 🔌 API Endpoints
+## API Reference
 
-### 1. Search Index (`GET /api/search`)
-Query the inverted index and return BM25-ranked results.
+### 1. Execute Search Query
+`GET /api/search`
+
+Executes tokenization, stemming, BM25 scoring, and top-K candidate extraction.
 
 **Query Parameters:**
-- `q` (required): Search query string (e.g. `react state`)
-- `topK` (optional, default `10`): Max number of results to return
+- `q` (string, required): The search terms.
+- `topK` (number, optional, default: `10`): Maximum results to retrieve.
+- `page` (number, optional, default: `1`): Pagination page index.
+- `limit` (number, optional, default: `10`): Results per page.
+- `domain` (string, optional): Filter results by domain.
 
-**Example:** `GET /api/search?q=react&topK=5`
-
-**Response:**
+**Response (200 OK):**
 ```json
 {
-  "query": "react",
+  "query": "react state",
   "totalResults": 1,
+  "totalPages": 1,
+  "currentPage": 1,
   "results": [
     {
       "documentId": "https://react.dev/",
-      "score": 0.7306553292815078,
+      "score": 1.482,
       "title": "React",
-      "snippet": "ReactThe library for web and native user interfaces... Create user interfaces from components..."
+      "snippet": "React - The library for web and native user interfaces..."
     }
   ]
 }
@@ -124,55 +172,122 @@ Query the inverted index and return BM25-ranked results.
 
 ---
 
-### 2. Index Web Page (`POST /api/index`)
-Crawl a URL, extract visible text, store document, and update inverted index.
+### 2. Index Web Page
+`POST /api/index`
+
+Crawls target web address, processes text content, persists document to database, and updates inverted index.
 
 **Request Body:**
 ```json
 {
-  "url": "https://en.wikipedia.org/wiki/Search_engine"
+  "url": "https://react.dev/",
+  "maxDepth": 1,
+  "maxPages": 1
 }
 ```
 
-**Response:**
+**Response (200 OK):**
 ```json
 {
   "status": "indexed",
-  "url": "https://en.wikipedia.org/wiki/Search_engine",
-  "title": "Search engine - Wikipedia",
-  "tokensIndexed": 7376
+  "url": "https://react.dev/",
+  "title": "React",
+  "tokensIndexed": 908,
+  "childLinksFound": 60
 }
 ```
 
 ---
 
-### 3. View Index Stats (`GET /api/stats`)
-Get live metric counters from the index and database.
+### 3. Autocomplete & Suggestions
+`GET /api/suggest`
 
-**Response:**
+Queries the in-memory Trie for prefix matches.
+
+**Query Parameters:**
+- `q` (string, required): Prefix string.
+- `limit` (number, optional, default: `5`): Maximum suggestions to return.
+
+**Response (200 OK):**
 ```json
 {
-  "totalDocuments": 2,
-  "totalTerms": 3443,
-  "averageDocumentLength": 6732,
-  "documentsInDatabase": 2
+  "prefix": "rea",
+  "suggestions": ["react", "reading", "realtime"]
 }
 ```
 
 ---
 
-## 🧠 BM25 Ranking Formula
+### 4. System Metrics
+`GET /api/stats`
 
-The ranking engine calculates document relevance using **Best Matching 25 (BM25)**:
+Retrieves system-wide index and database metrics.
 
-$$\text{Score}(D, Q) = \sum_{i=1}^{n} \text{IDF}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgdl}}\right)}$$
-
-- **$k_1 = 1.5$**: Controls term frequency saturation.
-- **$b = 0.75$**: Controls document length normalization.
-- **$\text{IDF}(q_i) = \log_{10}\left(1 + \frac{N}{df_i}\right)$**: Smoothed Inverse Document Frequency.
+**Response (200 OK):**
+```json
+{
+  "totalDocuments": 15,
+  "totalTerms": 4820,
+  "averageDocumentLength": 1240,
+  "documentsInDatabase": 15
+}
+```
 
 ---
 
-## 📄 License
+## Local Development Setup
 
-MIT
+### Prerequisites
+- Node.js (v18.0.0 or higher)
+- npm (v9.0.0 or higher)
+
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/kalpitagrawal/SearchEngine.git
+   cd SearchEngine/GithubSearchEngine
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Configure environment variables in `.env`:
+   ```env
+   PORT=8080
+   CORS_ORIGIN=*
+   USE_MEMORY_DB=true
+   CRAWLER_TIMEOUT_MS=10000
+   CRAWLER_USER_AGENT=SearchEngineBot/1.0
+   ```
+
+4. Start local development server:
+   ```bash
+   npm run dev
+   ```
+
+5. Access local environment at `http://localhost:8080`.
+
+---
+
+## Production Deployment Configuration
+
+### Render Backend Setup
+- **Build Command:** `npm install`
+- **Start Command:** `npm start`
+- **Environment Variables:**
+  - `USE_MEMORY_DB`: `false`
+  - `MONGO_URI`: `mongodb+srv://<user>:<password>@cluster.mongodb.net/searchengine`
+  - `CORS_ORIGIN`: `*`
+
+### Vercel Frontend Setup
+- **Output Directory:** `public`
+- **Framework Preset:** `Other`
+- API calls are proxied through `vercel.json` rewrites to Render.
+
+---
+
+## License
+
+This project is open-source and available under the [MIT License](LICENSE).
