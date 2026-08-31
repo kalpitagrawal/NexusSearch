@@ -22,8 +22,9 @@ const app = express()
 import searchRouter from "./routes/search.routes.js"
 
 
+const corsOrigin = process.env.CORS_ORIGIN;
 app.use(cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: (!corsOrigin || corsOrigin === "*") ? true : corsOrigin.includes(",") ? corsOrigin.split(",") : corsOrigin,
     credentials: true
 }));
 app.use(express.json({ limit: "16kb" }));
