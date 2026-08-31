@@ -153,7 +153,7 @@ Instead of executing a global array sort ($O(N \log N)$) over all matched docume
 ## Project Structure
 
 ```text
-GithubSearchEngine/
+SearchEngine/
 ├── public/
 │   ├── app.js               # Frontend router, state manager, and view engine
 │   ├── index.html           # Single-page application markup
@@ -300,7 +300,7 @@ Retrieve live system metrics from the in-memory inverted index and database.
 
 ```bash
 git clone https://github.com/kalpitagrawal/SearchEngine.git
-cd SearchEngine/GithubSearchEngine
+cd SearchEngine
 ```
 
 ### 2. Configuration
@@ -333,7 +333,7 @@ Open `http://localhost:8080` in your browser.
 ### Deploying Backend to Render
 1. Create a new **Web Service** on [Render](https://render.com) connected to your GitHub repository.
 2. Configure settings:
-   - **Root Directory:** `GithubSearchEngine` *(or leave empty if repo root)*
+   - **Root Directory:** Leave empty (or `./`)
    - **Environment:** `Node`
    - **Build Command:** `npm install`
    - **Start Command:** `npm start`
