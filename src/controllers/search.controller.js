@@ -106,4 +106,26 @@ const getSuggestions = async (req, res) => {
     }
 };
 
-export { searchDocuments, indexUrl, getStats, getSuggestions };
+/**
+ * GET /api/document?url=...
+ *
+ * Return full stored document content for cached view.
+ */
+const getDocument = async (req, res) => {
+    const { url } = req.query;
+    if (!url || url.trim() === "") {
+        return res.status(400).json({ error: "Parameter 'url' is required." });
+    }
+
+    try {
+        const doc = await SearchService.getDocument(url.trim());
+        if (!doc) {
+            return res.status(404).json({ error: "Document not found in index." });
+        }
+        return res.status(200).json(doc);
+    } catch (error) {
+        return res.status(500).json({ error: "Failed to fetch document.", message: error.message });
+    }
+};
+
+export { searchDocuments, indexUrl, getStats, getSuggestions, getDocument };

@@ -273,15 +273,40 @@ function renderResults(results, query = '') {
         }
 
         card.innerHTML = `
-            <div class="result-url">
-                <span class="result-url-favicon">${faviconLetter}</span>
-                ${escapeHtml(displayUrl)}
+            <div class="result-header-row">
+                <a class="result-url" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="Visit ${escapeAttr(url)}">
+                    <span class="result-url-favicon">${faviconLetter}</span>
+                    <span class="result-url-text">${escapeHtml(displayUrl)}</span>
+                </a>
             </div>
-            <div class="result-title" onclick="window.open('${escapeAttr(url)}', '_blank')">${highlightedTitle}</div>
+            <a class="result-title" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="Open ${escapeAttr(url)} in new tab">
+                ${highlightedTitle}
+            </a>
             <div class="result-snippet">${highlightedSnippet}</div>
-            <div class="result-score">
-                <span class="result-score-dot"></span>
-                Score: ${score}
+            <div class="result-footer">
+                <div class="result-score">
+                    <span class="result-score-dot"></span>
+                    Score: ${score}
+                </div>
+                <div class="result-actions">
+                    <a class="result-action-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="Visit original web page in a new tab">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                        Visit Page ↗
+                    </a>
+                    <button type="button" class="result-action-btn view-cached-btn" data-url="${escapeAttr(url)}" title="View page snapshot stored in search engine database">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        Cached View
+                    </button>
+                </div>
             </div>
         `;
 
@@ -636,6 +661,104 @@ if (resultsForm) {
 
 
 // ============================================
+// CACHED DOCUMENT PREVIEW MODAL
+// ============================================
+
+async function openCachedModal(url) {
+    const modal = document.getElementById('cached-modal');
+    const titleEl = document.getElementById('modal-doc-title');
+    const urlEl = document.getElementById('modal-doc-url');
+    const urlText = document.getElementById('modal-url-text');
+    const liveLink = document.getElementById('modal-live-link');
+    const dateEl = document.getElementById('modal-doc-date');
+    const tokensEl = document.getElementById('modal-doc-tokens');
+    const contentEl = document.getElementById('modal-content');
+    const loadingEl = document.getElementById('modal-loading');
+
+    if (!modal) return;
+
+    modal.classList.remove('hidden');
+    if (loadingEl) loadingEl.classList.remove('hidden');
+    if (contentEl) contentEl.innerHTML = '';
+    if (titleEl) titleEl.textContent = 'Loading...';
+    if (urlText) urlText.textContent = url;
+    if (urlEl) urlEl.href = url;
+    if (liveLink) liveLink.href = url;
+    if (dateEl) dateEl.textContent = 'Indexed: ...';
+    if (tokensEl) tokensEl.textContent = 'Tokens: ...';
+
+    try {
+        const res = await fetch(`${API_BASE}/api/document?url=${encodeURIComponent(url)}`);
+        if (!res.ok) throw new Error(`Document not found in index (${res.status})`);
+
+        const doc = await res.json();
+        if (loadingEl) loadingEl.classList.add('hidden');
+
+        if (titleEl) titleEl.textContent = doc.title || 'Untitled Document';
+        if (urlText) urlText.textContent = doc.url || url;
+        if (urlEl) urlEl.href = doc.url || url;
+        if (liveLink) liveLink.href = doc.url || url;
+
+        if (dateEl) {
+            if (doc.indexedAt) {
+                const date = new Date(doc.indexedAt);
+                dateEl.textContent = `Indexed: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+            } else {
+                dateEl.textContent = 'Indexed: Recently';
+            }
+        }
+
+        if (tokensEl) {
+            tokensEl.textContent = `${(doc.tokenLength || 0).toLocaleString()} tokens indexed`;
+        }
+
+        // Highlight active query keywords in cached text
+        const highlightedContent = highlightQuery(doc.content, currentSearchState.query);
+        if (contentEl) {
+            contentEl.innerHTML = highlightedContent || '<em>(No text content stored)</em>';
+        }
+
+    } catch (err) {
+        if (loadingEl) loadingEl.classList.add('hidden');
+        if (titleEl) titleEl.textContent = 'Error Loading Document';
+        if (contentEl) {
+            contentEl.innerHTML = `<p style="color:var(--error);">${escapeHtml(err.message)}</p>`;
+        }
+    }
+}
+
+function closeCachedModal() {
+    const modal = document.getElementById('cached-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// Delegate cached view button clicks
+document.addEventListener('click', (e) => {
+    const cachedBtn = e.target.closest('.view-cached-btn');
+    if (cachedBtn) {
+        const url = cachedBtn.getAttribute('data-url');
+        if (url) openCachedModal(url);
+    }
+});
+
+// Modal close button
+const modalCloseBtn = document.getElementById('modal-close-btn');
+if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', closeCachedModal);
+}
+
+// Click outside modal card to close
+const cachedModalOverlay = document.getElementById('cached-modal');
+if (cachedModalOverlay) {
+    cachedModalOverlay.addEventListener('click', (e) => {
+        if (e.target === cachedModalOverlay) {
+            closeCachedModal();
+        }
+    });
+}
+
+
+// ============================================
 // UTILITIES
 // ============================================
 
@@ -648,7 +771,12 @@ function escapeHtml(str) {
 
 function escapeAttr(str) {
     if (!str) return '';
-    return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 
@@ -657,6 +785,20 @@ function escapeAttr(str) {
 // ============================================
 
 document.addEventListener('keydown', (e) => {
+    // Escape closes modal first, or goes home
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('cached-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+            closeCachedModal();
+            return;
+        }
+
+        showView('landing-view');
+        const input = document.getElementById('landing-search-input');
+        if (input) input.focus();
+        return;
+    }
+
     // "/" focuses search input
     if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
         e.preventDefault();
@@ -670,13 +812,6 @@ document.addEventListener('keydown', (e) => {
                 document.getElementById('results-search-input').focus();
             }
         }
-    }
-
-    // Escape goes home
-    if (e.key === 'Escape') {
-        showView('landing-view');
-        const input = document.getElementById('landing-search-input');
-        if (input) input.focus();
     }
 });
 

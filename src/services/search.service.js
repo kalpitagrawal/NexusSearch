@@ -319,4 +319,25 @@ const getSuggestions = (prefix, limit = 5) => {
     return invertedIndex.getSuggestions(prefix.trim(), limit);
 };
 
-export { rebuildIndex, search, indexUrl, getStats, getSuggestions };
+/**
+ * Retrieve a single document by its documentId (URL) for cached viewing.
+ *
+ * @param {string} documentId
+ * @returns {Promise<object|null>}
+ */
+const getDocument = async (documentId) => {
+    if (!documentId) return null;
+    const doc = await Document.findOne({ documentId }).lean();
+    if (!doc) return null;
+    return {
+        id: doc._id,
+        documentId: doc.documentId,
+        url: doc.url,
+        title: doc.title,
+        content: doc.content,
+        indexedAt: doc.indexedAt,
+        tokenLength: invertedIndex.getDocumentLength(doc.documentId) || 0
+    };
+};
+
+export { rebuildIndex, search, indexUrl, getStats, getSuggestions, getDocument };
