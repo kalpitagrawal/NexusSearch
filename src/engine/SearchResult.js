@@ -4,7 +4,6 @@
  * Created by RankingEngine with documentId + score.
  * Enriched by SearchService with title + snippet from the database.
  *
- * Direct port of SearchResult.java
  */
 class SearchResult {
 

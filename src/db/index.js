@@ -1,16 +1,11 @@
 /**
- * Database Connection
+ * Database Connection Manager
  *
- * Supports two modes (same pattern as Java's H2 / PostgreSQL dual config):
- *
- * 1. Persistent Local DB (Local Dev) — default
- *    Uses mongodb-memory-server with WiredTiger storage backed by disk at ./data/db.
- *    Direct equivalent of Java's: spring.datasource.url=jdbc:h2:file:./data/searchengine
- *    Indexed documents persist across server restarts!
- *
- * 2. MongoDB Atlas (Production)
- *    Uses a real MongoDB cluster.
- *    Set MONGO_URI in .env and USE_MEMORY_DB=false.
+ * Supports two operational modes:
+ * 1. Local Development DB: Active only when USE_MEMORY_DB === "true"
+ *    Uses mongodb-memory-server backed by local disk storage at ./data/db.
+ * 2. MongoDB Atlas (Production & Standard):
+ *    Requires MONGO_URI environment variable.
  */
 import fs from "fs";
 import path from "path";
@@ -21,13 +16,10 @@ let memoryServer = null;
 
 const connectDB = async () => {
     try {
-        const useMemoryDB = process.env.USE_MEMORY_DB !== "false";
-
+        const useMemoryDB = process.env.USE_MEMORY_DB === "true";
         let uri;
 
         if (useMemoryDB) {
-            // --- Disk-backed Local Database (Local Dev) ---
-            // Equivalent of: spring.datasource.url=jdbc:h2:file:./data/searchengine
             const { MongoMemoryServer } = await import("mongodb-memory-server");
             const dbPath = path.resolve("./data/db");
             if (!fs.existsSync(dbPath)) {
@@ -43,10 +35,9 @@ const connectDB = async () => {
             uri = memoryServer.getUri();
             console.log(`Using persistent local database at ${dbPath}`);
         } else {
-            // --- MongoDB Atlas (Production) ---
             uri = process.env.MONGO_URI;
             if (!uri) {
-                throw new Error("MONGO_URI is required when USE_MEMORY_DB=false");
+                throw new Error("MONGO_URI environment variable is required when USE_MEMORY_DB is not explicitly set to 'true'.");
             }
         }
 
@@ -54,7 +45,7 @@ const connectDB = async () => {
         console.log(`\nDATABASE CONNECTED && DB HOST: ${connectionInstance.connection.host}`);
 
     } catch (error) {
-        console.log("DATABASE CONNECTION ERROR:", error);
+        console.log("DATABASE CONNECTION ERROR:", error.message);
         process.exit(1);
     }
 };

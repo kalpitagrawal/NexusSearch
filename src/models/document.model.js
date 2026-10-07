@@ -1,16 +1,5 @@
 /**
  * Document Model — Mongoose schema for indexed web pages.
- *
- * Direct port of Document.java (@Entity)
- *
- * | Java Field      | Mongoose Field  | Type      | Notes                           |
- * |-----------------|-----------------|-----------|----------------------------------|
- * | id (auto)       | _id (auto)      | ObjectId  | Primary key, auto-generated      |
- * | documentId      | documentId      | String    | URL used as document identifier  |
- * | title           | title           | String    | Page title from crawled HTML     |
- * | content         | content         | String    | Full extracted text content       |
- * | url             | url             | String    | The original URL                 |
- * | indexedAt       | indexedAt       | Date      | When the document was indexed    |
  */
 import mongoose, { Schema } from "mongoose";
 

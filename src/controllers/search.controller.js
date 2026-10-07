@@ -1,20 +1,41 @@
 /**
  * SearchController — REST API endpoint handlers.
- *
- * Direct port of SearchController.java
- *
- * Endpoints:
- *   GET  /api/search?q=redis&topK=10  — Search the index
- *   POST /api/index  { url: "..." }    — Crawl and index a URL
- *   GET  /api/stats                    — Return index statistics
- *   GET  /api/suggest?q=alg            — Return autocompletion suggestions
  */
 import * as SearchService from "../services/search.service.js";
 
 /**
- * GET /api/search?q=redis&topK=10
+ * Maps crawl errors to standard HTTP status codes.
+ * @param {Error} error
+ * @returns {number}
  */
-const searchDocuments = async (req, res) => {
+const mapCrawlErrorToStatus = (error) => {
+    const msg = (error.message || "").toLowerCase();
+    const code = error.code || "";
+
+    if (code === "ECONNABORTED" || msg.includes("timeout")) {
+        return 504; // Gateway Timeout
+    }
+    if (code === "ENOTFOUND" || code === "ECONNREFUSED" || code === "EAI_AGAIN") {
+        return 502; // Bad Gateway
+    }
+    if (msg.includes("unsupported content type")) {
+        return 415; // Unsupported Media Type
+    }
+    if (
+        msg.includes("blocked") ||
+        msg.includes("disallowed") ||
+        msg.includes("invalid protocol") ||
+        msg.includes("invalid url")
+    ) {
+        return 400; // Bad Request
+    }
+    return 500;
+};
+
+/**
+ * GET /api/search?q=query&topK=50&page=1&limit=10&domain=all
+ */
+export const searchDocuments = async (req, res) => {
     const { q, topK = "50", page = "1", limit = "10", domain = "all" } = req.query;
 
     if (!q || q.trim() === "") {
@@ -40,11 +61,12 @@ const searchDocuments = async (req, res) => {
 
 /**
  * POST /api/index
+ * Body: { url: "...", maxDepth: 1, maxPages: 1, sameDomainOnly: false }
  */
-const indexUrl = async (req, res) => {
-    const { url, maxDepth = 1, maxPages = 1 } = req.body;
+export const indexUrl = async (req, res) => {
+    const { url, maxDepth = 1, maxPages = 1, sameDomainOnly = false } = req.body;
 
-    if (!url || url.trim() === "") {
+    if (!url || typeof url !== "string" || url.trim() === "") {
         return res.status(400).json({
             error: "Field 'url' is required."
         });
@@ -54,12 +76,15 @@ const indexUrl = async (req, res) => {
         const parsedDepth = parseInt(maxDepth, 10) || 1;
         const parsedPages = parseInt(maxPages, 10) || 1;
 
-        const result = await SearchService.indexUrl(url, parsedDepth, parsedPages);
-        return res.status(200).json(result);
+        const result = await SearchService.indexUrl(url.trim(), parsedDepth, parsedPages, {
+            sameDomainOnly: Boolean(sameDomainOnly)
+        });
 
+        return res.status(200).json(result);
     } catch (error) {
-        return res.status(400).json({
-            error: "Failed to crawl URL.",
+        const statusCode = mapCrawlErrorToStatus(error);
+        return res.status(statusCode).json({
+            error: error.message || "Failed to crawl URL.",
             message: error.message,
             url
         });
@@ -69,7 +94,7 @@ const indexUrl = async (req, res) => {
 /**
  * GET /api/stats
  */
-const getStats = async (req, res) => {
+export const getStats = async (req, res) => {
     try {
         const stats = await SearchService.getStats();
         return res.status(200).json(stats);
@@ -82,9 +107,9 @@ const getStats = async (req, res) => {
 };
 
 /**
- * GET /api/suggest?q=alg&limit=5
+ * GET /api/suggest?q=prefix&limit=5
  */
-const getSuggestions = async (req, res) => {
+export const getSuggestions = async (req, res) => {
     const { q, limit = "5" } = req.query;
 
     if (!q || q.trim() === "") {
@@ -108,10 +133,8 @@ const getSuggestions = async (req, res) => {
 
 /**
  * GET /api/document?url=...
- *
- * Return full stored document content for cached view.
  */
-const getDocument = async (req, res) => {
+export const getDocument = async (req, res) => {
     const { url } = req.query;
     if (!url || url.trim() === "") {
         return res.status(400).json({ error: "Parameter 'url' is required." });
@@ -124,8 +147,9 @@ const getDocument = async (req, res) => {
         }
         return res.status(200).json(doc);
     } catch (error) {
-        return res.status(500).json({ error: "Failed to fetch document.", message: error.message });
+        return res.status(500).json({
+            error: "Failed to fetch document.",
+            message: error.message
+        });
     }
 };
-
-export { searchDocuments, indexUrl, getStats, getSuggestions, getDocument };

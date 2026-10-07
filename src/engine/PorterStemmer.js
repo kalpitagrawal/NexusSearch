@@ -110,7 +110,8 @@ function cvc(stem) {
  * @returns {string} stemmed word
  */
 function stem(word) {
-    if (!word || word.length <= 2) return word;
+    if (typeof word !== "string") return "";
+    if (word.length <= 2) return word;
 
     let w = word.toLowerCase();
 

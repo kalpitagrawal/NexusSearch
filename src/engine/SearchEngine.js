@@ -1,48 +1,51 @@
 /**
  * SearchEngine — The search pipeline facade.
  *
- * Orchestrates the full search flow:
- *   1. Process the query through TextProcessor (tokens + exact quoted phrases)
- *   2. Deduplicate query tokens (Set)
- *   3. Retrieve candidate documents from the InvertedIndex
- *   4. Rank candidates using RankingEngine (BM25 + Exact Phrase Verification)
- *   5. Return top-K results
+ * Orchestrates:
+ *   1. Tokenization and phrase extraction via TextProcessor
+ *   2. Retrieval of matching candidates from InvertedIndex
+ *   3. Scoring and top-K selection via RankingEngine
  */
 import * as TextProcessor from "./TextProcessor.js";
-import { invertedIndex } from "./InvertedIndex.js";
+import { getActiveIndex } from "./InvertedIndex.js";
 import * as RankingEngine from "./RankingEngine.js";
+
+/**
+ * Retrieve matching candidates and query tokens for a query string.
+ * @param {string} query
+ * @returns {{ queryTerms: string[], phrases: string[][], candidates: Set<string>, index: import('./InvertedIndex.js').InvertedIndex }}
+ */
+const getQueryCandidates = (query) => {
+    const { tokens, phrases } = TextProcessor.processQuery(query);
+    const queryTerms = [...new Set(tokens)];
+    const index = getActiveIndex();
+    const candidates = index.getCandidates(queryTerms);
+    return { queryTerms, phrases, candidates, index };
+};
 
 /**
  * Search the index for documents matching the query.
  *
- * @param {string} query - raw search query (supports quoted phrases like "data structure")
- * @param {number} topK - number of results to return
+ * @param {string} query - Raw search query
+ * @param {number} topK - Capacity of the Min-Heap priority queue
+ * @param {Set<string>|Array<string>} [candidateSubset=null] - Optional candidate subset (e.g. filtered by domain)
  * @returns {import('./SearchResult.js').SearchResult[]}
- * @throws {Error} if topK <= 0
  */
-const search = (query, topK) => {
-
+const search = (query, topK, candidateSubset = null) => {
     if (topK <= 0) {
         throw new Error("topK must be greater than 0");
     }
 
-    // Step 1: Process query into tokens and exact quoted phrases
-    const { tokens, phrases } = TextProcessor.processQuery(query);
+    const { queryTerms, phrases, candidates, index } = getQueryCandidates(query);
+    const targetCandidates = candidateSubset ? candidateSubset : candidates;
 
-    // Step 2: Deduplicate query tokens
-    const queryTerms = [...new Set(tokens)];
-
-    // Step 3: Get candidate documents (union of posting lists)
-    const candidates = invertedIndex.getCandidates(queryTerms);
-
-    // Step 4 & 5: Rank candidates using BM25 + Phrase Boost and return top-K
     return RankingEngine.rank(
-        candidates,
+        targetCandidates,
         queryTerms,
         topK,
-        invertedIndex,
+        index,
         phrases
     );
 };
 
-export { search };
+export { search, getQueryCandidates };

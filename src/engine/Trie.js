@@ -1,9 +1,10 @@
 /**
- * Trie (Prefix Tree) — Data structure for real-time search autocompletion & prefix matching.
+ * Trie (Prefix Tree) — Autocomplete and prefix matching index.
  *
- * Each node represents a single character. Words sharing prefixes share common ancestor nodes.
- * Tracks term frequency across indexed documents to rank top autocomplete suggestions.
+ * Stores unstemmed vocabulary words weighted by corpus term frequency.
+ * Uses a size-bounded min-heap during prefix traversal for top-K suggestion retrieval.
  */
+
 class TrieNode {
     constructor() {
         /** @type {Map<string, TrieNode>} */
@@ -20,34 +21,37 @@ class Trie {
     }
 
     /**
-     * Insert a word into the Trie with an optional frequency weight.
+     * Insert a word into the Trie with an aggregated frequency count.
      *
-     * @param {string} word
-     * @param {number} [weight=1]
+     * @param {string} word - Normalized unstemmed word
+     * @param {number} [weight=1] - Word frequency count in document
      */
     insert(word, weight = 1) {
         if (!word || typeof word !== "string") return;
         const normalized = word.toLowerCase().trim();
-        if (!normalized) return;
+        if (!normalized || normalized.length < 2) return;
 
         let curr = this.root;
         for (const char of normalized) {
-            if (!curr.children.has(char)) {
-                curr.children.set(char, new TrieNode());
+            let child = curr.children.get(char);
+            if (!child) {
+                child = new TrieNode();
+                curr.children.set(char, child);
             }
-            curr = curr.children.get(char);
+            curr = child;
         }
+
         curr.isEndOfWord = true;
         curr.frequency += weight;
         curr.originalWord = normalized;
     }
 
     /**
-     * Get top autocomplete suggestions for a given prefix.
+     * Retrieve top autocomplete suggestions for a prefix using a bounded Min-Heap.
      *
-     * @param {string} prefix
-     * @param {number} [maxResults=5]
-     * @returns {string[]} array of suggested words sorted by frequency descending
+     * @param {string} prefix - Term prefix
+     * @param {number} [maxResults=5] - Maximum number of suggestions to return
+     * @returns {string[]} Array of suggested words sorted by frequency descending
      */
     getSuggestions(prefix, maxResults = 5) {
         if (!prefix || typeof prefix !== "string") return [];
@@ -56,40 +60,48 @@ class Trie {
 
         let curr = this.root;
         for (const char of normalized) {
-            if (!curr.children.has(char)) {
-                return []; // No matches for prefix
+            const child = curr.children.get(char);
+            if (!child) {
+                return [];
             }
-            curr = curr.children.get(char);
+            curr = child;
         }
 
-        // Collect all descendant words
-        const results = [];
-        this._collectWords(curr, results);
+        // Bounded collection using min-heap logic to avoid unbounded subtree array allocations
+        const heap = []; // Min-heap ordered by frequency ascending
 
-        // Sort by frequency descending and return top maxResults
-        results.sort((a, b) => b.frequency - a.frequency);
-        return results.slice(0, maxResults).map(item => item.word);
-    }
+        const pushToHeap = (candidate) => {
+            if (heap.length < maxResults) {
+                heap.push(candidate);
+                heap.sort((a, b) => a.frequency - b.frequency);
+            } else if (candidate.frequency > heap[0].frequency) {
+                heap[0] = candidate;
+                heap.sort((a, b) => a.frequency - b.frequency);
+            }
+        };
 
-    /** @private */
-    _collectWords(node, results) {
-        if (node.isEndOfWord) {
-            results.push({ word: node.originalWord, frequency: node.frequency });
-        }
-        for (const childNode of node.children.values()) {
-            this._collectWords(childNode, results);
-        }
+        const traverse = (node) => {
+            if (node.isEndOfWord) {
+                pushToHeap({ word: node.originalWord, frequency: node.frequency });
+            }
+            for (const childNode of node.children.values()) {
+                traverse(childNode);
+            }
+        };
+
+        traverse(curr);
+
+        // Sort top-K candidates descending by frequency
+        heap.sort((a, b) => b.frequency - a.frequency);
+        return heap.map(item => item.word);
     }
 
     /**
-     * Clear the Trie.
+     * Clear all nodes from the Trie.
      */
     clear() {
         this.root = new TrieNode();
     }
 }
 
-// Global Trie Component Instance
-const trie = new Trie();
-
-export { Trie, trie };
+export { Trie, TrieNode };

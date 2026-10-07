@@ -151,8 +151,9 @@ async function performSearch(query, page = 1, limit = 10, domain = 'all', update
     resultsInfo.textContent = '';
 
     try {
+        const dynamicTopK = Math.max(50, currentSearchState.page * currentSearchState.limit);
         const response = await fetch(
-            `${API_BASE}/api/search?q=${encodeURIComponent(query)}&topK=50&page=${currentSearchState.page}&limit=${currentSearchState.limit}&domain=${encodeURIComponent(currentSearchState.domain)}`
+            `${API_BASE}/api/search?q=${encodeURIComponent(query)}&topK=${dynamicTopK}&page=${currentSearchState.page}&limit=${currentSearchState.limit}&domain=${encodeURIComponent(currentSearchState.domain)}`
         );
 
         if (!response.ok) {
@@ -495,8 +496,8 @@ if (indexForm) {
         if (!url) return;
 
         const isRecursive = recursiveToggle ? recursiveToggle.checked : false;
-        const maxDepth = isRecursive ? (parseInt(document.getElementById('depth-input').value, 10) || 2) : 1;
-        const maxPages = isRecursive ? (parseInt(document.getElementById('pages-input').value, 10) || 10) : 1;
+        const maxDepth = isRecursive ? Math.min(parseInt(document.getElementById('depth-input').value, 10) || 2, 2) : 1;
+        const maxPages = isRecursive ? Math.min(parseInt(document.getElementById('pages-input').value, 10) || 5, 5) : 1;
 
         indexResult.classList.add('hidden');
         indexLoading.classList.remove('hidden');

@@ -3,20 +3,23 @@
  * + Exact Phrase Matching (Quoted Queries).
  *
  * BM25 Parameters:
- *   k1 = 1.5  — Term frequency saturation
- *   b  = 0.75 — Document length normalization
+ *   k1 = 1.5  — Term frequency saturation parameter
+ *   b  = 0.75 — Document length normalization parameter
  *
- * Phrase Search:
- *   Verifies exact token adjacency (pos_next == pos_prev + 1) for quoted phrases.
- *   Applies a 2.5x multiplier boost per exact phrase match to bring exact matches to the top.
+ * IDF Formulation:
+ *   Standard BM25 smoothed IDF: ln(1 + (N - df + 0.5) / (df + 0.5))
+ *   Guarantees non-negative weight even when df > N / 2.
+ *
+ * Selection:
+ *   Uses a bounded Min-Heap of capacity K to select the top-K highest scoring results
+ *   in O(N log K) time, where N is the number of matching candidate documents.
  */
 import { SearchResult } from "./SearchResult.js";
 
 /**
- * MinHeap — A min-heap priority queue for efficient top-K selection.
+ * MinHeap — A size-bounded min-heap priority queue for top-K selection.
  */
 class MinHeap {
-
     constructor() {
         /** @type {SearchResult[]} */
         this.heap = [];
@@ -92,28 +95,54 @@ class MinHeap {
     }
 }
 
-
 /**
- * Rank candidate documents using BM25 and exact phrase matching.
+ * Rank candidate documents using BM25 and exact phrase verification.
  *
- * @param {Set<string>} candidates - set of candidate document IDs
- * @param {string[]} queryTokens - processed query tokens
- * @param {number} topK - number of results to return
- * @param {import('./InvertedIndex.js').InvertedIndex} index - inverted index
- * @param {string[][]} [phrases=[]] - optional list of exact quoted phrases
- * @returns {SearchResult[]} - top-K results sorted by score descending
+ * @param {Set<string>|Array<string>} candidates - Matching candidate document IDs
+ * @param {string[]} queryTokens - Processed query tokens
+ * @param {number} topK - Number of top results to retain in Min-Heap
+ * @param {import('./InvertedIndex.js').InvertedIndex} index - Inverted index
+ * @param {string[][]} [phrases=[]] - Optional exact quoted phrase token sequences
+ * @returns {SearchResult[]} Top-K results sorted descending by score
  */
 const rank = (candidates, queryTokens, topK, index, phrases = []) => {
+    if (!candidates || (candidates.size === 0 && (!Array.isArray(candidates) || candidates.length === 0))) {
+        return [];
+    }
 
+    const safeTopK = Math.max(1, topK);
     const queue = new MinHeap();
     const totalDocuments = index.getTotalDocuments();
+    const averageDocumentLength = index.getAverageDocumentLength();
 
+    if (totalDocuments === 0 || averageDocumentLength === 0) {
+        return [];
+    }
+
+    // 1. Precompute term IDF and posting lists ONCE for all candidates
+    const termMetadata = [];
+    for (const token of queryTokens) {
+        const postings = index.getPostingList(token);
+        if (!postings) continue;
+
+        const df = postings.getDocumentFrequency();
+        if (df === 0) continue;
+
+        // Standard BM25 smoothed IDF: ln(1 + (N - df + 0.5) / (df + 0.5))
+        const idf = Math.log(1 + ((totalDocuments - df + 0.5) / (df + 0.5)));
+        termMetadata.push({ token, postings, idf });
+    }
+
+    if (termMetadata.length === 0) {
+        return [];
+    }
+
+    // 2. Score candidates and insert into bounded MinHeap of capacity K
     for (const documentId of candidates) {
-
         const score = calculateScore(
             documentId,
-            queryTokens,
-            totalDocuments,
+            termMetadata,
+            averageDocumentLength,
             index,
             phrases
         );
@@ -122,7 +151,7 @@ const rank = (candidates, queryTokens, topK, index, phrases = []) => {
 
         const result = new SearchResult(documentId, score);
 
-        if (queue.size < topK) {
+        if (queue.size < safeTopK) {
             queue.offer(result);
         } else if (result.score > queue.peek().score) {
             queue.poll();
@@ -136,53 +165,33 @@ const rank = (candidates, queryTokens, topK, index, phrases = []) => {
     return results;
 };
 
-
 /**
- * Calculate BM25 + Phrase Boost score for a document.
+ * Calculate BM25 score with precomputed term IDFs and optional exact phrase boost.
  *
  * @private
  */
-const calculateScore = (documentId, queryTokens, totalDocuments, index, phrases = []) => {
-
+const calculateScore = (documentId, termMetadata, averageDocumentLength, index, phrases = []) => {
     let score = 0;
-
     const k1 = 1.5;
     const b = 0.75;
 
-    const averageDocumentLength = index.getAverageDocumentLength();
     const documentLength = index.getDocumentLength(documentId);
-
-    if (averageDocumentLength === 0 || documentLength === 0) {
+    if (documentLength === 0) {
         return 0;
     }
 
-    for (const token of queryTokens) {
+    const lengthFactor = 1 - b + b * (documentLength / averageDocumentLength);
 
-        const postings = index.getPostingList(token);
-
-        if (!postings) {
-            continue;
-        }
-
+    for (const { postings, idf } of termMetadata) {
         const tf = postings.getFrequency(documentId);
-        const df = postings.getDocumentFrequency();
+        if (tf === 0) continue;
 
-        if (df !== 0) {
-            // Robertson BM25 IDF formula with +1 smoothing
-            const idf = Math.log10(1 + (totalDocuments / df));
-
-            const lengthFactor = 1 - b + b * (documentLength / averageDocumentLength);
-
-            const numerator = tf * (k1 + 1) * idf;
-            const denominator = tf + k1 * lengthFactor;
-
-            const termScore = numerator / denominator;
-
-            score += termScore;
-        }
+        const numerator = tf * (k1 + 1) * idf;
+        const denominator = tf + k1 * lengthFactor;
+        score += numerator / denominator;
     }
 
-    // --- EXACT PHRASE SEARCH BOOST ---
+    // Exact phrase search boost
     if (phrases.length > 0 && score > 0) {
         let totalPhraseMatches = 0;
         let matchedAllPhrases = true;
@@ -197,10 +206,8 @@ const calculateScore = (documentId, queryTokens, totalDocuments, index, phrases 
         }
 
         if (matchedAllPhrases && totalPhraseMatches > 0) {
-            // Apply 2.5x multiplier boost per phrase match
             score = score * (1 + totalPhraseMatches * 2.5);
         } else {
-            // Penalize documents that do not match the exact quoted phrase
             score = score * 0.1;
         }
     }
@@ -209,12 +216,12 @@ const calculateScore = (documentId, queryTokens, totalDocuments, index, phrases 
 };
 
 /**
- * Verify exact adjacency of phrase tokens in a document.
+ * Verify exact adjacency of phrase tokens in a document via positional posting offsets.
  *
  * @param {string} documentId
  * @param {string[]} phraseTokens
  * @param {import('./InvertedIndex.js').InvertedIndex} index
- * @returns {number} number of exact occurrences
+ * @returns {number} Number of exact phrase occurrences
  */
 const countPhraseMatches = (documentId, phraseTokens, index) => {
     if (!phraseTokens || phraseTokens.length < 2) return 0;
